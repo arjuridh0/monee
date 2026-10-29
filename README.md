@@ -4,7 +4,7 @@ PWA pencatat keuangan pribadi berbahasa Indonesia dengan maskot interaktif. Data
 
 ## Menjalankan
 
-Gunakan Node 22 (minimal 22.12) dan jalankan dari root proyek:
+Gunakan Node 22.23.4 atau patch Node 22 yang lebih baru dan jalankan dari root proyek:
 
 ```powershell
 npm.cmd ci

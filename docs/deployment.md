@@ -1,6 +1,6 @@
 # Panduan deployment Monee: dari GitHub sampai aplikasi berjalan
 
-Diperbarui dan dicocokkan dengan sumber resmi melalui tools pada **26 Oktober 2026**.
+Diperbarui dan dicocokkan dengan sumber resmi melalui tools pada **29 Oktober 2026**.
 
 Panduan ini ditujukan untuk pemilik aplikasi yang baru pertama kali menyiapkan hosting ini. Ikuti jalur utama bagian 1-10 secara berurutan. Setiap tahap memiliki hasil yang perlu diperiksa sebelum melanjutkan. Perintah terminal memakai **PowerShell di Windows**.
 
@@ -70,7 +70,7 @@ Pengguna biasa tidak perlu memahami GitHub, env atau API key. Mereka menerima UR
 ### 2.1 Pasang alat jika belum tersedia
 
 1. Pasang Git for Windows dari [situs Git resmi](https://git-scm.com/install/windows).
-2. Pasang **Node.js 22.x, minimal 22.12**, dari [unduhan Node.js resmi](https://nodejs.org/en/download). Pilih versi 22 dari pilihan versi, karena `package.json` proyek membatasi Node ke major 22. Jangan langsung memakai major terbaru yang berbeda.
+2. Pasang **Node.js 22.23.4 atau patch 22.x yang lebih baru** dari [unduhan Node.js resmi](https://nodejs.org/en/download). Proyek membatasi runtime ke Node 22, dan versi minimum dinaikkan setelah security release Oktober 2026.
 3. Tutup dan buka kembali PowerShell setelah instalasi.
 
 Jalankan:
@@ -86,7 +86,7 @@ Test-Path wrangler.jsonc
 Get-Content .node-version
 ```
 
-**Hasil yang diharapkan:** Git/npm dapat dipanggil, Node menampilkan `v22.x`, lokasi menunjuk folder proyek, kedua `Test-Path` bernilai `True`, dan `.node-version` berisi `22`.
+**Hasil yang diharapkan:** Git/npm dapat dipanggil, Node menampilkan `v22.23.4` atau patch 22.x yang lebih baru, lokasi menunjuk folder proyek, kedua `Test-Path` bernilai `True`, dan `.node-version` berisi `22.23.4`.
 
 Di Windows, gunakan `npm.cmd` agar tidak tersangkut kebijakan eksekusi `npm.ps1`. Jangan menyalin prompt terminal seperti `PS D:>` bersama perintah.
 
@@ -694,7 +694,7 @@ Baca pesan pertama yang gagal, bukan hanya baris terakhir. Pisahkan tahap Git, b
 | `non-fast-forward` pada push pertama | Repository remote mungkin sudah memiliki commit, misalnya README otomatis. Periksa riwayat; jangan langsung force push. Pakai repository kosong untuk langkah awal atau selaraskan riwayat dengan benar. |
 | Repository tidak muncul di Cloudflare | Periksa akun GitHub dan akses GitHub App ke repository Private tersebut. |
 | `package.json` tidak ditemukan | Root directory salah atau proyek tersimpan dalam folder tambahan di repository. |
-| Peringatan/error `EBADENGINE` | Periksa log versi Node. Gunakan major 22, minimal 22.12, dan pastikan `.node-version` ikut commit. |
+| Peringatan/error `EBADENGINE` | Periksa log versi Node. Gunakan major 22, minimal 22.23.4, dan pastikan `.node-version` ikut commit. |
 | Wrangler name mismatch | Nama project dashboard harus sama dengan `name` di `wrangler.jsonc`. |
 | `dist` tidak ada saat deploy | Pastikan build command `npm run build` berjalan lebih dulu dan berhasil. |
 | Dependency install gagal | Pertahankan lockfile; periksa versi Node/npm dan pesan resolver. Jangan menghapus lockfile atau memakai force sebagai langkah awal. |

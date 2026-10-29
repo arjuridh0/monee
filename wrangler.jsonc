@@ -2,7 +2,7 @@
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "monee",
   "main": "server/index.ts",
-  "compatibility_date": "2026-10-26",
+  "compatibility_date": "2026-10-29",
   "keep_vars": true,
   "assets": {
     "directory": "./dist",

@@ -1,0 +1,169 @@
+/* =============================================
+   Monee � Design Tokens (dok 04)
+   Tailwind v4: gunakan @import "tailwindcss"
+   ============================================= */
+
+@import "tailwindcss";
+
+@font-face {
+  font-family: 'Baloo 2';
+  font-style: normal;
+  font-weight: 400 800;
+  font-display: swap;
+  src: url('/fonts/baloo-2-latin.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Nunito';
+  font-style: normal;
+  font-weight: 400 800;
+  font-display: swap;
+  src: url('/fonts/nunito-latin.woff2') format('woff2');
+}
+
+/* Registered so mascot theme swaps interpolate instead of snapping. */
+@property --theme-accent       { syntax: '<color>'; inherits: true; initial-value: #4F7C3A; }
+@property --theme-accent-vivid { syntax: '<color>'; inherits: true; initial-value: #8FB565; }
+@property --theme-accent-soft  { syntax: '<color>'; inherits: true; initial-value: #E6EFDB; }
+@property --theme-accent-ink   { syntax: '<color>'; inherits: true; initial-value: #33501F; }
+@property --theme-bg-tone      { syntax: '<color>'; inherits: true; initial-value: #F3F0E4; }
+@property --nav-bg             { syntax: '<color>'; inherits: true; initial-value: #3F3227; }
+@property --nav-bg-2           { syntax: '<color>'; inherits: true; initial-value: #4E3F31; }
+@property --nav-text           { syntax: '<color>'; inherits: true; initial-value: #BCAE9A; }
+@property --nav-accent         { syntax: '<color>'; inherits: true; initial-value: #8FB565; }
+@property --text-on-accent     { syntax: '<color>'; inherits: true; initial-value: #FFFFFF; }
+
+:root {
+  /* --- Base --- */
+  --bg-app:         #EFE7DA;
+  --bg-deep:        #E4D8C3;
+  --surface:        #FFFFFF;
+  --surface-2:      #FAF6EE;
+  --surface-3:      #F3EDE1;
+  --text-primary:   #2E2A24;
+  --text-secondary: #6E6558;
+  --text-muted:     #9C9182;
+  --text-accessible:#5C5347;
+  --text-on-accent: #FFFFFF;
+  --nav-button-ink: #241D18;
+  --border-soft:    #E7DCC9;
+  --border-hair:    #DFD3BD;
+  --shadow-card:    0 7px 18px rgba(138,111,74,0.24), inset -1px -2px 6px rgba(255,255,255,0.65);
+  --shadow-float:   0 12px 32px rgba(138,111,74,0.27), inset -1px -2px 6px rgba(255,255,255,0.65);
+  --shadow-sheet:   0 -10px 40px rgba(58,46,34,0.33);
+  --r-card-lg:      32px;
+  --r-card:         28px;
+  --r-btn:          20px;
+  --r-input:        16px;
+  --r-tile:         20px;
+  --r-chip:         999px;
+  --control-min:    44px;
+  --font-display:   'Baloo 2', sans-serif;
+  --font-body:      'Nunito', system-ui, sans-serif;
+
+  /* --- Semantic --- */
+  --st-normal:       #5C8F42;
+  --st-aware:        #D6A03C;
+  --st-warning:      #D0762F;
+  --st-danger:       #BF4B3E;
+  --st-danger-soft:  #F8E7E3;
+  --danger-ink:      #9C382D;
+  --warning-ink:     #755413;
+  --income:          #3F7A4E;
+  --expense:         #BF4B3E;
+
+  /* --- Theme accent (default: Mochi / Fresh Green) --- */
+  --theme-accent:      #4F7C3A;
+  --theme-accent-vivid:#8FB565;
+  --theme-accent-soft: #E6EFDB;
+  --theme-accent-ink:  #33501F;
+  --theme-bg-tone:     #F3F0E4;
+  --app-canvas:       var(--theme-bg-tone);
+  --accent:           var(--theme-accent);
+  --accent-vivid:     var(--theme-accent-vivid);
+  --accent-soft:      var(--theme-accent-soft);
+  --accent-ink:       var(--theme-accent-ink);
+  --nav-bg:           #3F3227;
+  --nav-bg-2:         #4E3F31;
+  --nav-text:         #BCAE9A;
+  --nav-active:       #FFFFFF;
+  --nav-accent:       #8FB565;
+  --focus-ring:       var(--accent-ink);
+
+  /* --- Motion --- */
+  --dur-fast:   150ms;
+  --dur-base:   250ms;
+  --dur-slow:   400ms;
+  --ease-out:   cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  /* --- Layout --- */
+  --screen-pad-x:   20px;
+  --bottom-nav-h:   100px;
+  --sidebar-tablet: 80px;
+  --sidebar-desktop:130px;
+  --layer-nav:      10;
+  --layer-overlay:  30;
+  --layer-toast:    40;
+
+  /* Mascot changes cross-fade accent + canvas for 400ms (dok 04 §10, dok 06). */
+  transition:
+    --theme-accent var(--dur-slow) var(--ease-out),
+    --theme-accent-vivid var(--dur-slow) var(--ease-out),
+    --theme-accent-soft var(--dur-slow) var(--ease-out),
+    --theme-accent-ink var(--dur-slow) var(--ease-out),
+    --theme-bg-tone var(--dur-slow) var(--ease-out),
+    --nav-bg var(--dur-slow) var(--ease-out),
+    --nav-bg-2 var(--dur-slow) var(--ease-out),
+    --nav-text var(--dur-slow) var(--ease-out),
+    --nav-accent var(--dur-slow) var(--ease-out),
+    --text-on-accent var(--dur-slow) var(--ease-out);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --dur-fast:   0ms;
+    --dur-base:   0ms;
+    --dur-slow:   0ms;
+  }
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+html, body {
+  margin: 0;
+  min-width: 320px;
+  font-family: var(--font-body);
+  font-size: 16px;
+  line-height: 1.5;
+  background-color: var(--app-canvas);
+  color: var(--text-primary);
+  -webkit-font-smoothing: antialiased;
+  overscroll-behavior: none;
+}
+
+* { box-sizing: border-box; }
+button, input, textarea, select { font: inherit; }
+button, a { -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+button:not(:disabled), summary { cursor: pointer; }
+button:disabled { cursor: not-allowed; }
+input::placeholder, textarea::placeholder { color: var(--text-accessible); opacity: 1; }
+:focus-visible { outline: 3px solid var(--focus-ring); outline-offset: 3px; }
+::selection { background: var(--accent-soft); color: var(--accent-ink); }
+h1, h2, h3, p { margin: 0; }
+svg { flex-shrink: 0; }
+
+.safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
+.safe-top    { padding-top: env(safe-area-inset-top); }
+.font-tabular { font-variant-numeric: tabular-nums; }
+
+.app-container {
+  width: 100%;
+  margin-inline: auto;
+  min-height: 100dvh;
+  position: relative;
+  background: var(--app-canvas);
+}

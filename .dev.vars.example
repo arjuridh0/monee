@@ -1,0 +1,6 @@
+# SERVER ONLY. Copy to .dev.vars for local development; never use VITE_ names.
+# Production: set Secret GROQ_API_KEY and server variables in Cloudflare dashboard.
+# The API rejects requests without a verified Cloudflare Access user session.
+GROQ_API_KEY=
+ACCESS_TEAM_DOMAIN=https://your-team.cloudflareaccess.com
+ACCESS_AUD=

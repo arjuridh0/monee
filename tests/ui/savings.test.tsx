@@ -1,0 +1,220 @@
+import { webcrypto } from 'node:crypto'
+import 'fake-indexeddb/auto'
+import { IDBFactory } from 'fake-indexeddb'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { MemoryRouter } from 'react-router-dom'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { AppShell } from '@/app/AppShell'
+import { useMoneeStore } from '@/store'
+import { openDatabase, resetDbSingleton } from '@/core/db/migrations'
+import { profileRepo, seedDefaultData, sweepRepo, transactionRepo } from '@/core/db/repositories'
+import type { Transaction } from '@/core/finance/types'
+
+vi.mock('@/features/mascot/MascotCanvas', () => ({ MascotCanvas: () => <span>Teman Monee</span> }))
+beforeEach(() => {
+  vi.stubGlobal('crypto', webcrypto)
+  vi.stubGlobal('indexedDB', new IDBFactory())
+  vi.useFakeTimers({ toFake: ['Date'] })
+  vi.setSystemTime(new Date('2026-10-24T03:00:00Z'))
+  resetDbSingleton()
+  useMoneeStore.setState(useMoneeStore.getInitialState(), true)
+})
+afterEach(async () => {
+  cleanup()
+  const db = await openDatabase(); db.close()
+  resetDbSingleton(); vi.useRealTimers(); vi.unstubAllGlobals()
+})
+
+async function prepare(empty = false) {
+  const db = await openDatabase()
+  await seedDefaultData(db)
+  await profileRepo.save(db, { id: 'profile', name: 'Nara', mascotId: 'luna', pinHash: 'hash', pinSalt: 'salt',
+    periodStartDay: 1, defaultBucketId: 'bucket-needs', createdAt: Date.now() })
+  if (!empty) {
+    await sweepRepo.save(db, { id: 'sweep-september', periodKey: '2026-09', amount: 300000, perBucketDetail: [], sweptAt: Date.now() - 100000 })
+    const base = { date: '2026-10-24', deleted: false, refundedAmount: 0, createdAt: Date.now(), updatedAt: Date.now() }
+    const rows: Transaction[] = [
+      { ...base, id: 'income', type: 'income', amount: 1000000, categoryId: 'cat-gaji' },
+      { ...base, id: 'deposit', type: 'savings_deposit', amount: 200000, categoryId: 'cat-tabungan', bucketId: 'bucket-savings' },
+      { ...base, id: 'sisa-expense', type: 'savings_expense', amount: 50000, savingsSource: 'sisa', note: 'Darurat: bengkel' },
+    ]
+    for (const row of rows) await transactionRepo.save(db, row)
+  }
+  await useMoneeStore.getState().load()
+  useMoneeStore.getState().setLocked(false)
+  render(<MemoryRouter initialEntries={['/tabungan']} future={{ v7_startTransition: true, v7_relativeSplatPath: true }}><AppShell /></MemoryRouter>)
+}
+
+describe('savings page', () => {
+  it('shows the total derived from both compartments on the savings root tab', async () => {
+    await prepare()
+    expect(screen.getByRole('heading', { level: 1, name: 'Tabungan' })).toBeVisible()
+    expect(screen.getByRole('region', { name: 'Total tabungan' })).toHaveTextContent('Rp450.000')
+    expect(within(screen.getByRole('navigation', { name: 'Navigasi utama' })).getByRole('link', { name: 'Tabungan' })).toHaveAttribute('aria-current', 'page')
+  })
+  it('shows Sisa after spending and the original sweep amount as its own ledger record', async () => {
+    await prepare()
+    expect(screen.getByRole('region', { name: 'Kompartemen Sisa' })).toHaveTextContent('Rp250.000')
+    const ledger = screen.getByRole('region', { name: 'Sisa dari periode sebelumnya' })
+    expect(ledger).toHaveTextContent('September 2026')
+    expect(ledger).toHaveTextContent('Rp300.000')
+  })
+  it('edits and reverses an open savings expense from its ledger detail', async () => {
+    const user = userEvent.setup()
+    await prepare()
+    await user.click(screen.getByRole('button', { name: 'Detail Darurat: bengkel' }))
+    const dialog = screen.getByRole('dialog', { name: 'Detail pengeluaran tabungan' })
+    await user.click(within(dialog).getByRole('button', { name: 'Edit pengeluaran' }))
+    fireEvent.change(within(dialog).getByLabelText('Nominal (Rp)'), { target: { value: '40000' } })
+    await user.click(within(dialog).getByRole('button', { name: 'Simpan perubahan' }))
+    await waitFor(() => expect(useMoneeStore.getState().transactions.find(item => item.id === 'sisa-expense')?.amount).toBe(40000))
+    await user.click(screen.getByRole('button', { name: 'Detail Darurat: bengkel' }))
+    const detail = screen.getByRole('dialog', { name: 'Detail pengeluaran tabungan' })
+    await user.click(within(detail).getByRole('button', { name: 'Hapus pengeluaran' }))
+    expect(within(detail).getByText(/Dana kembali ke kompartemen/)).toBeVisible()
+    await user.click(within(detail).getByRole('button', { name: 'Ya, hapus' }))
+    await act(async () => { await new Promise(resolve => setTimeout(resolve, 4200)) })
+    await waitFor(() => expect(useMoneeStore.getState().transactions.find(item => item.id === 'sisa-expense')?.deleted).toBe(true))
+  }, 10000)
+
+  it('rejects an oversized Sisa expense, retains the draft, and spends only from Sisa', async () => {
+    await prepare()
+    await userEvent.click(screen.getByRole('button', { name: 'Pakai Sisa' }))
+    const dialog = screen.getByRole('dialog', { name: 'Pakai tabungan' })
+    expect(within(dialog).queryByLabelText('Kategori')).not.toBeInTheDocument()
+    fireEvent.change(within(dialog).getByLabelText('Nominal (Rp)'), { target: { value: '300000' } })
+    fireEvent.change(within(dialog).getByLabelText('Catatan'), { target: { value: 'Perbaikan rumah' } })
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Simpan pengeluaran' }))
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent('ERR_KOMPARTEMEN_KURANG')
+    expect(within(dialog).getByLabelText('Nominal (Rp)')).toHaveValue(300000)
+    fireEvent.change(within(dialog).getByLabelText('Nominal (Rp)'), { target: { value: '100000' } })
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Simpan pengeluaran' }))
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Pakai tabungan' })).not.toBeInTheDocument())
+    expect(screen.getByRole('region', { name: 'Kompartemen Sisa' })).toHaveTextContent('Rp150.000')
+    expect(useMoneeStore.getState().snapshot?.balance.balance).toBe(800000)
+    expect(useMoneeStore.getState().snapshot?.savings.allocationBalance).toBe(200000)
+  })
+  it('offers emergency and investment notes and stores investment as a Sisa outflow', async () => {
+    await prepare()
+    await userEvent.click(screen.getByRole('button', { name: 'Pakai Sisa' }))
+    const dialog = screen.getByRole('dialog', { name: 'Pakai tabungan' })
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Darurat' }))
+    expect(within(dialog).getByLabelText('Catatan')).toHaveValue('Darurat: ')
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Pindah ke investasi' }))
+    fireEvent.change(within(dialog).getByLabelText('Nominal (Rp)'), { target: { value: '50000' } })
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Simpan pengeluaran' }))
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Pakai tabungan' })).not.toBeInTheDocument())
+    expect(useMoneeStore.getState().transactions.find(tx => tx.note === 'Pindah ke investasi')).toMatchObject({
+      type: 'savings_expense', savingsSource: 'sisa', amount: 50000,
+    })
+    expect(useMoneeStore.getState().snapshot?.savings.sisaBalance).toBe(200000)
+  })
+  it('deposits once into Allocation with a balance guard and no category or goal selector', async () => {
+    await prepare()
+    await userEvent.click(screen.getByRole('button', { name: 'Setor ke Allocation' }))
+    const dialog = screen.getByRole('dialog', { name: 'Setor tabungan' })
+    expect(within(dialog).queryByLabelText('Kategori')).not.toBeInTheDocument()
+    expect(within(dialog).queryByLabelText('Goal')).not.toBeInTheDocument()
+    fireEvent.change(within(dialog).getByLabelText('Nominal (Rp)'), { target: { value: '900000' } })
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Simpan setoran' }))
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent('ERR_SALDO_KURANG')
+    fireEvent.change(within(dialog).getByLabelText('Nominal (Rp)'), { target: { value: '100000' } })
+    await userEvent.dblClick(within(dialog).getByRole('button', { name: 'Simpan setoran' }))
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Setor tabungan' })).not.toBeInTheDocument())
+    expect(screen.getByRole('region', { name: 'Kompartemen Allocation' })).toHaveTextContent('Rp300.000')
+    expect(useMoneeStore.getState().snapshot?.balance.balance).toBe(700000)
+    expect(useMoneeStore.getState().transactions.filter(tx => tx.type === 'savings_deposit')).toHaveLength(2)
+  })
+  it('fills goals by priority, persists keyboard reordering, and returns deleted goals to the pool', async () => {
+    await prepare()
+    for (const name of ['Laptop', 'Liburan']) {
+      await userEvent.click(screen.getByRole('button', { name: 'Tambah tujuan' }))
+      const dialog = screen.getByRole('dialog', { name: 'Tambah tujuan' })
+      fireEvent.change(within(dialog).getByLabelText('Nama tujuan'), { target: { value: name } })
+      fireEvent.change(within(dialog).getByLabelText('Target (Rp)'), { target: { value: '150000' } })
+      await userEvent.click(within(dialog).getByRole('button', { name: 'Simpan tujuan' }))
+      await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Tambah tujuan' })).not.toBeInTheDocument())
+    }
+    expect(screen.getByRole('progressbar', { name: 'Progress Laptop' })).toHaveAttribute('aria-valuenow', '100')
+    expect(screen.getByRole('progressbar', { name: 'Progress Liburan' })).toHaveAttribute('aria-valuenow', '33.3')
+    fireEvent.keyDown(screen.getByRole('button', { name: 'Ubah prioritas Liburan' }), { key: 'ArrowUp' })
+    await waitFor(() => expect(screen.getByRole('progressbar', { name: 'Progress Liburan' })).toHaveAttribute('aria-valuenow', '100'))
+    await act(async () => useMoneeStore.getState().load())
+    expect(screen.getByRole('progressbar', { name: 'Progress Laptop' })).toHaveAttribute('aria-valuenow', '33.3')
+    await userEvent.click(screen.getByRole('button', { name: 'Hapus tujuan Liburan' }))
+    await userEvent.click(within(screen.getByRole('dialog', { name: 'Hapus tujuan?' })).getByRole('button', { name: 'Ya, hapus tujuan' }))
+    expect(within(screen.getByRole('dialog', { name: 'Hapus tujuan?' })).getByRole('button', { name: 'Batal' })).toBeVisible()
+    expect(useMoneeStore.getState().goals.some(goal => goal.name === 'Liburan')).toBe(true)
+    await waitFor(() => expect(screen.queryByText('Liburan')).not.toBeInTheDocument(), { timeout: 6000 })
+    expect(screen.getByRole('progressbar', { name: 'Progress Laptop' })).toHaveAttribute('aria-valuenow', '100')
+    expect(useMoneeStore.getState().snapshot?.savings.allocationBalance).toBe(200000)
+  }, 15000)
+  it('cancels goal use during the four-second fuse and then uses it exactly once', async () => {
+    await prepare()
+    await act(async () => useMoneeStore.getState().saveGoal({ id: 'camera', name: 'Kamera', targetAmount: 100000, sortOrder: 0, createdAt: Date.now() }))
+    await userEvent.click(screen.getByRole('button', { name: 'Gunakan tujuan Kamera' }))
+    const dialog = screen.getByRole('dialog', { name: 'Gunakan tujuan?' })
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Konfirmasi gunakan' }))
+    expect(within(dialog).getByRole('status')).toHaveTextContent('Menunggu konfirmasi')
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Batal' }))
+    expect(useMoneeStore.getState().snapshot?.savings.allocationBalance).toBe(200000)
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Konfirmasi gunakan' }))
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Gunakan tujuan?' })).not.toBeInTheDocument(), { timeout: 6500 })
+    expect(screen.getByRole('region', { name: 'Riwayat tujuan' })).toHaveTextContent('Kamera')
+    expect(useMoneeStore.getState().transactions.filter(tx => tx.note === 'Gunakan goal: Kamera')).toHaveLength(1)
+    expect(useMoneeStore.getState().snapshot?.savings.allocationBalance).toBe(100000)
+    expect(useMoneeStore.getState().snapshot?.balance.balance).toBe(800000)
+  }, 15000)
+  it('revalidates funds after the fuse and shows a regressed goal as unavailable', async () => {
+    await prepare()
+    await act(async () => useMoneeStore.getState().saveGoal({ id: 'camera', name: 'Kamera', targetAmount: 200000, sortOrder: 0, createdAt: Date.now() }))
+    await userEvent.click(screen.getByRole('button', { name: 'Gunakan tujuan Kamera' }))
+    const dialog = screen.getByRole('dialog', { name: 'Gunakan tujuan?' })
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Konfirmasi gunakan' }))
+    await act(async () => useMoneeStore.getState().recordSavingsExpense({ amount: 50000, note: 'Dana dipakai kebutuhan lain', savingsSource: 'allocation' }))
+    expect(await within(dialog).findByRole('alert', {}, { timeout: 6500 })).toHaveTextContent('ERR_GOAL_BELUM_CUKUP')
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Tutup Gunakan tujuan?' }))
+    expect(screen.queryByRole('button', { name: 'Gunakan tujuan Kamera' })).not.toBeInTheDocument()
+    expect(screen.getByRole('progressbar', { name: 'Progress Kamera' })).toHaveAttribute('aria-valuenow', '75')
+    expect(useMoneeStore.getState().goals[0]).not.toHaveProperty('usedAt')
+    expect(useMoneeStore.getState().transactions.filter(tx => tx.note === 'Gunakan goal: Kamera')).toHaveLength(0)
+  }, 15000)
+  it('combines sweeps, deposits and outflows in a category-free ledger and filters by source', async () => {
+    await prepare()
+    const ledger = screen.getByRole('region', { name: 'Ledger tabungan' })
+    expect(within(ledger).getAllByRole('listitem')).toHaveLength(3)
+    expect(ledger).toHaveTextContent('Sisa periode September 2026')
+    expect(ledger).toHaveTextContent('Darurat: bengkel')
+    expect(ledger).toHaveTextContent('Setoran tabungan')
+    expect(ledger).not.toHaveTextContent('Kategori')
+    await userEvent.click(within(ledger).getByRole('radio', { name: 'Allocation', exact: true }))
+    expect(within(ledger).getAllByRole('listitem')).toHaveLength(1)
+    expect(ledger).not.toHaveTextContent('Darurat: bengkel')
+    await userEvent.click(within(ledger).getByRole('radio', { name: 'Sisa', exact: true }))
+    expect(within(ledger).getAllByRole('listitem')).toHaveLength(2)
+    expect(ledger).not.toHaveTextContent('Setoran tabungan')
+  })
+  it('guides first-time savers toward income or their first deposit and disables empty outflows', async () => {
+    await prepare(true)
+    expect(screen.getByRole('heading', { name: 'Mulai tabunganmu' })).toBeVisible()
+    expect(screen.getByRole('link', { name: 'Catat pemasukan' })).toHaveAttribute('href', '/')
+    expect(screen.getByRole('button', { name: 'Pakai Sisa' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Pakai Allocation' })).toBeDisabled()
+    await act(async () => useMoneeStore.getState().addTransaction({ id: 'first-income', type: 'income', amount: 100000, date: '2026-10-24', categoryId: 'cat-gaji', createdAt: Date.now(), updatedAt: Date.now() }))
+    await userEvent.click(screen.getByRole('button', { name: 'Setor pertama' }))
+    expect(screen.getByRole('dialog', { name: 'Setor tabungan' })).toBeInTheDocument()
+    expect(within(screen.getByRole('dialog', { name: 'Setor tabungan' })).getByLabelText('Nominal (Rp)')).toHaveFocus()
+  })
+  it('lets the shared spending sheet select its source without mixing compartment balances', async () => {
+    await prepare()
+    await userEvent.click(screen.getByRole('button', { name: 'Pakai Sisa' }))
+    const dialog = screen.getByRole('dialog', { name: 'Pakai tabungan' })
+    await userEvent.selectOptions(within(dialog).getByLabelText('Sumber dana'), 'allocation')
+    fireEvent.change(within(dialog).getByLabelText('Nominal (Rp)'), { target: { value: '50000' } })
+    fireEvent.change(within(dialog).getByLabelText('Catatan'), { target: { value: 'Kebutuhan Allocation' } })
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Simpan pengeluaran' }))
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Pakai tabungan' })).not.toBeInTheDocument())
+    expect(useMoneeStore.getState().snapshot?.savings).toMatchObject({ sisaBalance: 250000, allocationBalance: 150000 })
+  })
+})

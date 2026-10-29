@@ -1,0 +1,14 @@
+.voice-form,.voice-fields { display:grid; gap:16px; min-width:0; }
+.voice-fields { border:0; margin:0; padding:0; }
+.voice-form p { margin:0; line-height:1.6; overflow-wrap:anywhere; }
+.voice-field { display:grid; gap:8px; min-width:0; font-weight:800; font-size:14px; }
+.voice-field select,.voice-field textarea { width:100%; min-width:0; min-height:52px; padding:12px 14px; border:1px solid var(--border-hair); border-radius:var(--r-input); background:var(--surface-2); color:var(--text-primary); font:inherit; }
+.voice-field textarea { resize:vertical; font-weight:600; }
+.voice-field select:focus-visible,.voice-field textarea:focus-visible { outline:2px solid var(--accent-ink); outline-offset:3px; }
+.voice-mascot { display:grid; justify-items:center; }
+.voice-status { text-align:center; font-weight:800; }
+.voice-review-hint { padding:12px 14px; background:var(--accent-soft); color:var(--accent-ink); border-radius:var(--r-input); font-size:13px; }
+.voice-progress { color:var(--text-accessible); font-weight:800; }
+.voice-consent { display:flex; align-items:center; gap:10px; min-height:44px; font-size:14px; line-height:1.5; cursor:pointer; }
+.voice-consent input { flex:0 0 44px; width:44px; height:44px; accent-color:var(--accent-ink); }
+.voice-form > a { display:flex; align-items:center; min-height:44px; color:var(--accent-ink); text-underline-offset:3px; }

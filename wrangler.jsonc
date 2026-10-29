@@ -1,0 +1,19 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "monee",
+  "main": "server/index.ts",
+  "compatibility_date": "2026-10-26",
+  "keep_vars": true,
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api", "/api/*", "/auth/refresh"]
+  },
+  "ratelimits": [{
+    "name": "AI_RATE_LIMIT",
+    "namespace_id": "1001",
+    "simple": { "limit": 10, "period": 60 }
+  }],
+  "observability": { "enabled": false }
+}

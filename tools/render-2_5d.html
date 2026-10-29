@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<title>Monee 2.5D Mascot Renderer</title>
+<style>
+  html,body{margin:0;padding:0;background:transparent}
+  #stage{position:relative}
+  canvas{display:block}
+</style>
+</head>
+<body>
+<div id="stage"><canvas id="c"></canvas></div>
+<script type="module">
+// Harness render 2.5D: memuat engine prosedural (mascots/core/mascot_canvas.js)
+// lalu menggambar satu state tertentu secara deterministik.
+// Dipakai tools/render-2_5d.cjs via Playwright untuk menghasilkan mockup PNG.
+import { MascotCanvas } from '../mascots/core/mascot_canvas.js';
+
+const q = new URLSearchParams(location.search);
+const id = q.get('id') || 'mochi';
+const state = q.get('state') || 'idle';
+const size = Number(q.get('size') || 320);
+const dpr = Number(q.get('dpr') || 2);
+
+const canvas = document.getElementById('c');
+const stage = document.getElementById('stage');
+stage.style.width = size + 'px';
+stage.style.height = size + 'px';
+canvas.style.width = size + 'px';
+canvas.style.height = size + 'px';
+canvas.width = size * dpr;
+canvas.height = size * dpr;
+
+const engine = new MascotCanvas({
+  canvas, mascot: id, width: size, state, interactive: false, autoGabut: false
+});
+
+// Freeze pada pose/time yang stabil per state supaya render konsisten & deterministik.
+const PRESET = {
+  idle:      { t: 0.6,  yaw: 0.18, pitch: -0.05 },
+  greeting:  { t: 0.35, yaw: 0,    pitch: 0 },
+  listening: { t: 1.2,  yaw: -0.1, pitch: -0.08 },
+  thinking:  { t: 1.8,  yaw: 0.22, pitch: 0.06 },
+  happy:     { t: 0.5,  yaw: 0,    pitch: 0 },
+  sad:       { t: 1.0,  yaw: 0,    pitch: 0.12 },
+  celebrate: { t: 1.0,  yaw: 0,    pitch: 0 },
+  pet:       { t: 0.5,  yaw: 0,    pitch: 0.05 },
+  surprised: { t: 0.3,  yaw: 0,    pitch: 0 }
+};
+const p = PRESET[state] || PRESET.idle;
+engine.p.t = p.t;
+engine.p.yaw = p.yaw;
+engine.p.pitch = p.pitch;
+engine.p.blink = 0;
+engine._back = null;
+
+engine.running = false;
+cancelAnimationFrame(engine.raf);
+engine._render();
+
+window.__RENDER_DONE = true;
+</script>
+</body>
+</html>

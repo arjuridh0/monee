@@ -1,0 +1,12 @@
+.receipt-form,.receipt-fields { display:grid; gap:16px; min-width:0; }
+.receipt-fields { margin:0; padding:0; border:0; }
+.receipt-form p { margin:0; line-height:1.6; overflow-wrap:anywhere; }
+.receipt-preview { display:block; width:100%; max-height:280px; object-fit:contain; border-radius:var(--r-input); background:var(--surface-2); }
+.receipt-notice { padding:12px; background:var(--accent-soft); color:var(--accent-ink); border-radius:var(--r-input); }
+.receipt-item { display:grid; gap:12px; min-width:0; padding:16px 0; border-top:1px solid var(--border-hair); }
+.receipt-item h3 { margin:0; font-size:16px; }
+.receipt-select { display:grid; gap:8px; min-width:0; font-size:14px; font-weight:800; }
+.receipt-select select { width:100%; min-width:0; min-height:48px; border:1px solid var(--border-hair); border-radius:var(--r-input); background:var(--surface-2); color:var(--text-primary); padding:12px; font:inherit; }
+.receipt-select select:focus-visible { outline:2px solid var(--accent-ink); outline-offset:3px; }
+.receipt-total { font-weight:800; }
+.receipt-fields input[type=file] { width:100%; max-width:100%; font-size:13px; padding:10px; }

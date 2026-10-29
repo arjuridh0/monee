@@ -1,0 +1,30 @@
+.mascot-canvas {
+  position: relative;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  isolation: isolate;
+}
+
+.mascot-canvas canvas {
+  display: block;
+  /* The engine draws below the logical center to leave room for leaves/ears.
+     Lift the visible artwork slightly while retaining the full safe canvas. */
+  transform: translateY(-3%);
+  touch-action: pan-y;
+}
+
+.mascot-canvas canvas[hidden] { display: none; }
+
+.mascot-canvas__fallback {
+  display: grid;
+  place-items: center;
+  width: 80%;
+  height: 80%;
+  border-radius: 50%;
+  background: var(--theme-accent-soft);
+  color: var(--theme-accent-ink);
+  text-align: center;
+  font-size: 0.875rem;
+  font-weight: 700;
+}

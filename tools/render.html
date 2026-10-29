@@ -1,0 +1,49 @@
+﻿<!doctype html>
+<html><body style="margin:0;background:transparent">
+<canvas id="c" width="560" height="680" style="width:560px;height:680px;display:block"></canvas>
+<script type="importmap">{"imports":{"three":"/node_modules/three/build/three.module.js","three/addons/":"/node_modules/three/examples/jsm/"}}</script>
+<script type="module">
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
+const q = new URLSearchParams(location.search);
+const file = q.get('file'), rotY = +(q.get('rot') || 0), fit = +(q.get('fit') || 1);
+const r = new THREE.WebGLRenderer({ canvas: document.getElementById('c'), antialias: true, alpha: true, preserveDrawingBuffer: true });
+r.setPixelRatio(1); r.setClearColor(0x000000, 0);
+r.toneMapping = THREE.ACESFilmicToneMapping; r.outputColorSpace = THREE.SRGBColorSpace;
+const scene = new THREE.Scene();
+scene.add(new THREE.HemisphereLight(0xffffff, 0xd8d0c4, 1.6));
+const key = new THREE.DirectionalLight(0xfff6e8, 2.8); key.position.set(2, 3, 4); scene.add(key);
+const rim = new THREE.DirectionalLight(0xffffff, 1.2); rim.position.set(-3, 2, -2); scene.add(rim);
+const fill = new THREE.DirectionalLight(0xffffff, 0.8); fill.position.set(0, -2, 3); scene.add(fill);
+const draco = new DRACOLoader(); draco.setDecoderPath('/public/draco/');
+new GLTFLoader().setDRACOLoader(draco).load(file, (g) => {
+  const m = g.scene; m.rotation.y = rotY;
+  const box = new THREE.Box3().setFromObject(m), size = box.getSize(new THREE.Vector3()), c = box.getCenter(new THREE.Vector3());
+  m.traverse((o) => {
+    if (o.isMesh) {
+      const mt = o.material;
+      mt.side = THREE.DoubleSide;
+      mt.transparent = false;
+      mt.alphaTest = 0;
+      mt.opacity = 1;
+      mt.depthWrite = true;
+      console.log('mesh', o.name, 'color', mt.color && mt.color.getHexString(), 'map', mt.map ? (mt.map.image ? mt.map.image.width+'x'+mt.map.image.height : 'noimage') : 'none');
+    }
+  });
+  console.log('bbox', JSON.stringify(size));
+  m.position.sub(c);
+  const s = 2 / Math.max(size.y, size.x * 560 / 680);
+  m.scale.setScalar(s * fit);
+  m.position.multiplyScalar(s * fit);
+  scene.add(m);
+  const cam = new THREE.PerspectiveCamera(24, 560 / 680, 0.1, 100);
+  cam.position.set(0, 0, 7); cam.lookAt(0, 0, 0);
+  r.render(scene, cam);
+  requestAnimationFrame(() => {
+    r.render(scene, cam);
+    window.PNG = r.domElement.toDataURL('image/png');
+    window.READY = true;
+  });
+}, undefined, (e) => { window.ERR = String(e); });
+</script></body></html>

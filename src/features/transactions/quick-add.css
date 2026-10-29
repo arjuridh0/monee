@@ -1,0 +1,13 @@
+.quick-add-form { display: grid; gap: 16px; }
+.quick-add-field { display: grid; gap: 8px; min-width: 0; font-size: 14px; font-weight: 800; }
+.quick-add-field select { width: 100%; min-width: 0; min-height: 52px; padding: 12px 16px; border: 1px solid var(--border-hair); border-radius: var(--r-input); background: var(--surface-2); color: var(--text-primary); }
+.quick-add-savings-note { padding: 12px 14px; border-radius: var(--r-input); background: var(--accent-soft); color: var(--accent-ink); font-size: 13px; font-weight: 700; line-height: 1.5; }
+.quick-add-form > .ui-button { width: 100%; }
+
+.quick-add-fields{display:grid;gap:16px;border:0;padding:0;margin:0;min-width:0}.quick-add-category-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px}.quick-add-category-grid button{display:grid;justify-items:center;gap:6px;border:1px solid transparent;background:transparent;border-radius:12px;padding:6px 2px;font-size:11px;min-height:64px;cursor:pointer}.quick-add-category-grid button span{display:grid;place-items:center;width:40px;height:40px;border-radius:12px;color:var(--text-primary)}.quick-add-category-grid button[aria-pressed=true],.quick-add-buckets button[aria-pressed=true]{border-color:var(--theme-accent);background:var(--surface)}.quick-amounts,.quick-add-buckets{display:flex;gap:8px;flex-wrap:wrap}.quick-amounts button,.quick-add-buckets button{border:1px solid var(--border-soft);background:var(--surface);border-radius:16px;min-height:44px;padding:8px 12px;color:inherit;cursor:pointer}.quick-add-buckets button{display:grid;gap:5px}.quick-add-buckets progress{width:100%;height:4px}.quick-add-fields button:disabled{opacity:.45;cursor:default}
+.quick-add-footer { width: 100%; display: grid; gap: 10px; }
+.quick-add-footer > p { padding: 0; background: none; text-align: center; font-size: 11px; font-weight: 600; color: var(--text-accessible); }
+.quick-add-form .quick-amounts { display: grid; grid-template-columns: repeat(5,minmax(0,1fr)); gap: 6px; }
+.quick-add-form .quick-amounts button { min-width: 0; padding: 6px 2px; font-size: 12px; }
+.quick-add-category-grid::before { content: 'Kategori'; grid-column: 1 / -1; font-size: 13px; font-weight: 800; }
+.quick-add-buckets::before { content: 'Bucket'; flex: 0 0 100%; font-size: 13px; font-weight: 800; }

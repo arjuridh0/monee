@@ -1,0 +1,369 @@
+.mascot-screen {
+  position: relative;
+  isolation: isolate;
+  display: grid;
+  gap: 14px;
+  overflow-x: clip;
+  min-width: 0;
+}
+
+.mascot-screen__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.mascot-screen__back {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border: 1px solid color-mix(in srgb, var(--border-hair) 70%, transparent);
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--surface) 78%, transparent);
+  color: var(--text-secondary);
+  cursor: pointer;
+  box-shadow: 0 8px 18px rgba(58, 46, 34, 0.08);
+  transition: transform var(--dur-fast) var(--ease-out);
+}
+
+.mascot-screen__back:hover { transform: translateX(-2px); }
+
+.mascot-screen__step {
+  padding: 7px 12px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--surface) 74%, transparent);
+  color: var(--text-accessible);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.mascot-screen__intro {
+  display: grid;
+  gap: 6px;
+}
+
+.mascot-screen__intro h1 {
+  font-family: var(--font-display);
+  font-size: clamp(32px, 9vw, 42px);
+  line-height: 1.02;
+  letter-spacing: -0.01em;
+  font-weight: 800;
+}
+
+.mascot-screen__intro p {
+  max-width: 38ch;
+  color: var(--text-secondary);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.mascot-carousel {
+  position: relative;
+  display: grid;
+  gap: 2px;
+  width: 100%;
+  min-width: 0;
+}
+
+.mascot-carousel__backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+}
+
+.mascot-carousel__tint {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  background:
+    radial-gradient(62% 54% at 22% 16%, color-mix(in srgb, var(--m-accent-vivid) 38%, transparent) 0%, transparent 72%),
+    radial-gradient(58% 52% at 80% 78%, color-mix(in srgb, var(--m-accent) 28%, transparent) 0%, transparent 74%),
+    linear-gradient(180deg, var(--m-bg) 0%, color-mix(in srgb, var(--m-bg) 84%, #fff) 100%);
+  transition: opacity 600ms var(--ease-out);
+}
+
+.mascot-carousel__tint.is-active { opacity: 1; }
+
+.mascot-carousel__tint::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at 50% 38%, transparent 26%, rgba(46, 42, 36, 0.06) 100%);
+}
+
+.mascot-stage {
+  --mcard-w: clamp(250px, 74vw, 312px);
+  position: relative;
+  width: 100%;
+  height: calc(var(--mcard-w) * 1.25 + 30px);
+  margin-top: 6px;
+  perspective: 1100px;
+  perspective-origin: 50% 44%;
+  touch-action: pan-y;
+  user-select: none;
+  -webkit-user-select: none;
+  cursor: grab;
+  outline: none;
+}
+
+.mascot-stage.is-dragging { cursor: grabbing; }
+
+.mascot-stage:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--m-accent) 60%, #fff);
+  outline-offset: 6px;
+  border-radius: 36px;
+}
+
+.mascot-card {
+  position: absolute;
+  top: 16px;
+  left: 50%;
+  width: var(--mcard-w);
+  height: calc(var(--mcard-w) * 1.25);
+  margin-left: calc(var(--mcard-w) / -2);
+  border-radius: 34px;
+  transform-origin: 50% 50%;
+  backface-visibility: hidden;
+  will-change: transform, opacity;
+  cursor: pointer;
+}
+
+.mascot-card__inner {
+  position: relative;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  gap: 4px;
+  height: 100%;
+  padding: 18px 18px 20px;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--m-accent) 18%, #fff);
+  border-radius: inherit;
+  background:
+    radial-gradient(65% 52% at 50% 70%, color-mix(in srgb, var(--m-accent-vivid) 26%, transparent) 0%, transparent 70%),
+    linear-gradient(165deg, #fff 0%, var(--m-soft) 62%, color-mix(in srgb, var(--m-soft) 76%, var(--m-accent-vivid)) 100%);
+  box-shadow: 0 24px 55px rgba(58, 46, 34, 0.16);
+  will-change: filter;
+}
+
+.mascot-card[data-active='true'] .mascot-card__inner {
+  border-color: color-mix(in srgb, var(--m-accent) 42%, #fff);
+  box-shadow:
+    0 28px 70px color-mix(in srgb, var(--m-accent) 26%, transparent),
+    0 18px 40px rgba(58, 46, 34, 0.16);
+  animation: mascot-float 3.6s ease-in-out infinite;
+}
+
+.mascot-card__art {
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-height: 0;
+}
+
+.mascot-card__art::after {
+  content: '';
+  position: absolute;
+  bottom: 1%;
+  left: 50%;
+  width: 60%;
+  height: 9%;
+  transform: translateX(-50%);
+  border-radius: 50%;
+  background: radial-gradient(ellipse, color-mix(in srgb, var(--m-ink) 20%, transparent) 0%, transparent 70%);
+  filter: blur(4px);
+}
+
+.mascot-card__art img {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  pointer-events: none;
+  filter: drop-shadow(0 18px 20px rgba(58, 46, 34, 0.18));
+}
+
+.mascot-card__fallback {
+  position: relative;
+  z-index: 1;
+  font-family: var(--font-display);
+  font-size: clamp(64px, 18vw, 92px);
+  line-height: 1;
+  font-weight: 800;
+  color: color-mix(in srgb, var(--m-ink) 55%, #fff);
+}
+
+.mascot-card__loading {
+  width: 56%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: linear-gradient(100deg, var(--m-soft) 18%, #fff 42%, var(--m-soft) 68%);
+  background-size: 200% 100%;
+  animation: mascot-pulse 1.7s ease-in-out infinite;
+}
+
+.mascot-card__foot {
+  display: grid;
+  justify-items: center;
+  gap: 1px;
+}
+
+.mascot-card__name {
+  font-family: var(--font-display);
+  font-size: 27px;
+  line-height: 1.05;
+  font-weight: 800;
+  color: var(--m-ink);
+}
+
+.mascot-card__personality {
+  color: var(--text-secondary);
+  font-size: 12.5px;
+  font-weight: 700;
+}
+
+.mascot-carousel__meta {
+  display: grid;
+  gap: 2px;
+  min-height: 58px;
+  margin-top: 2px;
+  text-align: center;
+}
+
+.mascot-carousel__theme {
+  font-family: var(--font-display);
+  font-size: 19px;
+  font-weight: 800;
+  color: var(--m-ink);
+}
+
+.mascot-carousel__tagline {
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.mascot-dots {
+  display: flex;
+  justify-content: center;
+  gap: 2px;
+}
+
+.mascot-dot {
+  position: relative;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.mascot-dot::before {
+  content: '';
+  position: absolute;
+  inset: 17px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--m-ink) 22%, transparent);
+  transition: inset var(--dur-base) var(--ease-out), background-color var(--dur-base);
+}
+
+.mascot-dot.is-active::before {
+  inset: 17px 8px;
+  background: var(--m-accent);
+}
+
+.mascot-dot:focus-visible { outline: none; }
+
+.mascot-dot:focus-visible::before {
+  box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--m-ink);
+}
+
+.mascot-carousel__actions {
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr) 48px;
+  align-items: center;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.mascot-carousel__actions .ui-button {
+  width: 100%;
+  min-height: 52px;
+  padding-inline: 10px;
+  white-space: nowrap;
+}
+
+.mascot-arrow {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border: 1px solid var(--border-hair);
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--surface) 82%, transparent);
+  color: var(--m-ink);
+  cursor: pointer;
+  box-shadow: 0 8px 18px rgba(58, 46, 34, 0.1);
+  transition: transform var(--dur-fast) var(--ease-out), opacity var(--dur-fast);
+}
+
+.mascot-arrow:enabled:hover { transform: translateY(-2px); }
+
+.mascot-arrow:disabled {
+  opacity: 0.35;
+  box-shadow: none;
+  cursor: default;
+}
+
+.mascot-stage[data-paused='true'] * { animation-play-state: paused !important; }
+.mascot-stage--simple {
+  display: grid;
+  gap: 12px;
+  height: auto;
+  perspective: none;
+  cursor: default;
+}
+.mascot-stage--simple .mascot-card {
+  position: relative;
+  top: auto;
+  left: auto;
+  width: 100%;
+  height: auto;
+  min-height: 144px;
+  margin: 0;
+  will-change: auto;
+}
+.mascot-stage--simple .mascot-card__inner {
+  grid-template-columns: 112px minmax(0, 1fr);
+  grid-template-rows: auto;
+  align-items: center;
+  padding: 12px;
+  animation: none;
+  will-change: auto;
+}
+.mascot-stage--simple .mascot-card__foot { justify-items: start; }
+.mascot-stage--simple .mascot-card[data-active='true'] { outline: 3px solid var(--m-ink); outline-offset: -3px; }
+.mascot-stage--simple .mascot-card__art { height: 112px; }
+.mascot-stage--simple .mascot-card__personality { overflow-wrap: anywhere; }
+
+@keyframes mascot-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-5px); }
+}
+
+@keyframes mascot-pulse {
+  0%, 100% { background-position: 0% 0; opacity: 0.75; }
+  50% { background-position: 100% 0; opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mascot-card[data-active='true'] .mascot-card__inner { animation: none; }
+  .mascot-card__loading { animation: none; }
+  .mascot-carousel__tint { transition: none; }
+}

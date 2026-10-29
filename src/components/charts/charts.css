@@ -1,0 +1,23 @@
+.finance-charts { display:grid; gap:16px; min-width:0; }
+.finance-chart-card { min-width:0; }
+.finance-chart-card h3 { margin:0 0 12px; font-size:14px; font-weight:800; }
+.finance-chart-card p { font-size:12px; line-height:1.6; color:var(--text-accessible); }
+.finance-donut { display:block; width:min(100%,220px); height:auto; margin:0 auto 12px; overflow:visible; }
+.finance-donut-label { font:600 6px var(--font-body); fill:var(--text-secondary); }
+.finance-donut-total { font:800 8px var(--font-body); fill:var(--text-primary); }
+.finance-comparison { display:block; width:100%; height:auto; margin-bottom:12px; }
+.finance-chart-track { fill:var(--surface-2); }
+.finance-chart-income { fill:var(--income); }
+.finance-chart-expense { fill:var(--expense); }
+.finance-chart-legend { display:grid; gap:10px; margin:0; font-size:12px; }
+.finance-chart-legend > div { display:flex; align-items:start; justify-content:space-between; gap:10px; }
+.finance-chart-legend dt { display:flex; align-items:center; gap:7px; min-width:0; overflow-wrap:anywhere; }
+.finance-chart-legend dd { margin:0; text-align:right; overflow-wrap:anywhere; font-variant-numeric:tabular-nums; }
+.finance-chart-legend dd small { display:block; margin-top:2px; color:var(--text-accessible); }
+.finance-chart-swatch { flex:0 0 10px; width:10px; height:10px; border:1px solid var(--border-hair); border-radius:3px; }
+.finance-chart-card .finance-chart-note { margin:14px 0 0; }
+.history-analytics { border:1px solid var(--border-hair); border-radius:var(--r-card); background:var(--surface); }
+.history-analytics > summary { display:flex; align-items:center; min-height:48px; padding:12px 16px; color:var(--accent-ink); font-size:14px; font-weight:800; cursor:pointer; }
+.history-analytics > p { padding:0 16px 12px; font-size:12px; line-height:1.5; color:var(--text-accessible); }
+.history-analytics > .finance-charts { padding:0 12px 12px; }
+@container (min-width:600px) { .history-analytics > .finance-charts { grid-template-columns:repeat(2,minmax(0,1fr)); align-items:start; } }

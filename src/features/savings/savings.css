@@ -1,0 +1,80 @@
+.savings-screen { display: grid; gap: 20px; }
+.savings-header p { color: var(--text-accessible); font-size: 13px; font-weight: 700; }
+.savings-header h1 { font: 800 34px/1.2 var(--font-display); }
+.savings-hero { display: flex; align-items: center; justify-content: space-between; gap: 12px; background: var(--accent); color: var(--text-on-accent); }
+.savings-hero > div { display: grid; gap: 6px; min-width: 0; }
+.savings-hero p { font-size: 13px; font-weight: 800; }
+.savings-hero strong { font: 800 clamp(28px, 7vw, 38px)/1.2 var(--font-display); overflow-wrap: anywhere; }
+.savings-hero span { font-size: 12px; }
+.savings-hero > svg { flex: 0 0 auto; }
+.savings-pocket { display: grid; gap: 14px; }
+.savings-pocket h2 { font: 800 22px/1.2 var(--font-display); }
+.savings-pocket header p { color: var(--text-accessible); font-size: 12px; margin-top: 4px; }
+.savings-pocket-amount { font: 800 28px/1.2 var(--font-display); overflow-wrap: anywhere; }
+.savings-sweeps { display: grid; gap: 10px; padding-top: 14px; border-top: 1px solid var(--border-hair); }
+.savings-sweeps h3 { font-size: 13px; font-weight: 800; }
+.savings-sweeps ul { display: grid; gap: 10px; list-style: none; margin: 0; padding: 0; }
+.savings-sweeps li { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px; font-size: 12px; }
+.savings-sweeps p { color: var(--text-accessible); font-size: 12px; }
+.savings-form { display: grid; gap: 14px; }
+.savings-form > p:not(.ui-error) { color: var(--text-accessible); font-size: 13px; }
+.savings-select { display: grid; gap: 8px; font-size: 13px; font-weight: 800; }
+.savings-select select { width: 100%; min-width: 0; min-height: 52px; padding: 10px; border: 1px solid var(--border-hair); border-radius: var(--r-input); background: var(--surface-2); color: var(--text-primary); }
+.savings-presets { display: flex; flex-wrap: wrap; gap: 8px; }
+.savings-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.savings-actions .ui-button { flex: 1 1 auto; }
+.savings-goals { display: grid; gap: 12px; min-width: 0; }
+.savings-section-header { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
+.savings-section-header h2 { font: 800 24px/1.2 var(--font-display); }
+.savings-hint { color: var(--text-accessible); font-size: 12px; line-height: 1.5; }
+.savings-pool { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px; color: var(--text-accessible); font-size: 13px; }
+.savings-goal-list { display: grid; gap: 12px; list-style: none; margin: 0; padding: 0; }
+.savings-goal { display: grid; gap: 12px; padding: 14px; }
+.savings-goal .ui-progress > span { background: var(--accent); }
+.savings-goal > header { display: flex; align-items: center; gap: 8px; }
+.savings-goal h3 { flex: 1; min-width: 0; overflow-wrap: anywhere; font: 800 18px/1.25 var(--font-display); }
+.savings-grip { display: grid; place-items: center; flex: 0 0 44px; width: 44px; height: 44px; border: 0; border-radius: var(--r-input); background: var(--surface-2); color: var(--text-secondary); touch-action: none; cursor: grab; }
+.savings-grip:active { cursor: grabbing; }
+.savings-goal-badge { border-radius: 999px; padding: 5px 8px; background: var(--accent-soft); color: var(--accent-ink); font-size: 11px; font-weight: 800; }
+.savings-goal-progress { display: flex; flex-wrap: wrap; gap: 4px 6px; font-size: 14px; font-weight: 800; }
+.savings-goal-progress > span { color: var(--text-accessible); font-size: 12px; font-weight: 700; }
+.savings-goal-tools { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 4px; }
+.savings-goal-tools .ui-button { min-height: 44px; padding: 8px 12px; }
+.savings-goals-history { display: grid; gap: 10px; }
+.savings-goals-history h3 { font: 800 18px/1.2 var(--font-display); }
+.savings-goals-history ul { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.savings-goals-history li { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px; font-size: 12px; }
+.savings-ledger { display: grid; gap: 12px; }
+.savings-ledger h2 { font: 800 24px/1.2 var(--font-display); }
+.savings-ledger-card { padding: 4px 14px; }
+.savings-ledger ol { list-style: none; margin: 0; padding: 0; }
+.savings-ledger li { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; padding: 14px 0; }
+.savings-ledger li + li { border-top: 1px solid var(--border-hair); }
+.savings-ledger-icon { display: grid; place-items: center; flex: 0 0 36px; width: 36px; height: 36px; border-radius: 12px; background: var(--surface-2); color: var(--text-secondary); }
+.savings-ledger-icon.is-incoming { background: var(--accent-soft); color: var(--accent-ink); }
+.savings-ledger-copy { display: grid; gap: 4px; flex: 1; min-width: 0; }
+.savings-ledger-copy > strong { font-size: 13px; overflow-wrap: anywhere; }
+.savings-ledger-copy > span,.savings-ledger-copy small { color: var(--text-accessible); font-size: 11px; overflow-wrap: anywhere; }
+.savings-ledger-amount { flex: 0 0 auto; font-size: 12px; }
+.savings-ledger-empty { color: var(--text-accessible); font-size: 13px; }
+.savings-empty { display: grid; justify-items: center; gap: 12px; text-align: center; padding: 12px 0; }
+.savings-empty h2 { font: 800 26px/1.2 var(--font-display); }
+.savings-empty p { max-width: 36ch; color: var(--text-accessible); font-size: 13px; line-height: 1.5; }
+.savings-empty-mascot { display: grid; place-items: center; width: 176px; height: 160px; border-radius: 48% 52% 42% 58%; background: var(--accent-soft); }
+.goal-icon-field { display: grid; gap: 8px; font-size: 14px; font-weight: 800; }
+.goal-icon-field > span { display: flex; gap: 12px; align-items: center; }
+.goal-icon-field select { flex: 1; min-width: 0; min-height: 52px; padding: 12px; border: 1px solid var(--border-hair); border-radius: var(--r-input); background: var(--surface-2); }
+.savings-goal h3 svg { display: inline; vertical-align: middle; color: var(--accent-ink); }
+
+@media (min-width: 1280px) {
+  @container (min-width: 600px) {
+    .savings-screen { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .savings-header,
+    .savings-screen > section[aria-label="Total tabungan"],
+    .savings-empty,
+    .savings-hint,
+    .savings-goals,
+    .savings-ledger { grid-column: 1 / -1; }
+    .savings-goal-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+}

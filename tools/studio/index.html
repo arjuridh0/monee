@@ -1,0 +1,480 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Monee — Preview Maskot</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; user-select: none; -webkit-user-select: none; }
+
+:root {
+  --accent: #34C759;
+  --base: #F5FAF6;
+  --glow-a: #DFF5E1;
+  --glow-b: #BCE8C5;
+}
+
+body {
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  min-height: 100vh;
+  display: flex; flex-direction: column; align-items: center;
+  overflow-x: hidden; overflow-y: auto;
+  background:
+    radial-gradient(circle at 25% 20%, var(--glow-a) 0%, transparent 55%),
+    radial-gradient(circle at 78% 75%, var(--glow-b) 0%, transparent 55%),
+    var(--base);
+  transition: background 0.6s ease;
+  padding-bottom: 60px;
+}
+
+/* ===== HEADER ===== */
+h1 {
+  font-size: 24px; font-weight: 800; color: rgba(0,0,0,0.78);
+  padding-top: 36px; margin-bottom: 6px; text-align: center;
+}
+.subtitle {
+  font-size: 13px; font-weight: 600; color: rgba(0,0,0,0.42);
+  margin-bottom: 20px; text-align: center;
+}
+
+/* ===== STAGE (3D carousel) ===== */
+.stage {
+  position: relative;
+  width: min(92vw, 780px); height: 420px;
+  perspective: 1100px;
+}
+.card {
+  position: absolute; top: 10px; left: 50%;
+  width: 320px; height: 380px;
+  margin-left: -160px;
+  border-radius: 32px;
+  background: rgba(255,255,255,0.94);
+  box-shadow: 0 24px 60px rgba(0,0,0,0.14), 0 4px 16px rgba(0,0,0,0.06);
+  display: flex; flex-direction: column; align-items: center;
+  padding: 16px 14px 20px;
+  will-change: transform, opacity;
+  cursor: grab;
+}
+.card:active { cursor: grabbing; }
+.card canvas { width: 260px; height: 270px; display: block; border-radius: 20px; }
+.card .nm { font-size: 20px; font-weight: 800; color: var(--accent); margin-top: 6px; }
+.card .ds { font-size: 12px; font-weight: 600; color: #8A8577; margin-top: 2px; }
+
+/* ===== META (nama tema) ===== */
+.meta { text-align: center; margin-top: 18px; height: 50px; }
+.meta .theme { font-size: 15px; font-weight: 800; color: rgba(0,0,0,0.75); }
+
+/* ===== DOTS ===== */
+.dots { display: flex; gap: 8px; margin-top: 8px; }
+.dot { width: 9px; height: 9px; border-radius: 50%; background: rgba(0,0,0,0.18); transition: all .3s; cursor: pointer; }
+.dot.on { background: var(--accent); width: 22px; border-radius: 6px; }
+
+/* ===== NAV BUTTONS ===== */
+.nav { display: flex; gap: 12px; margin-top: 16px; align-items: center; }
+.nav button {
+  padding: 11px 24px; border-radius: 16px; border: none; cursor: pointer;
+  font-family: inherit; font-size: 13px; font-weight: 800; color: #fff;
+  background: var(--accent); box-shadow: 0 6px 18px rgba(0,0,0,0.15);
+  transition: transform .15s ease, background .4s, box-shadow .2s;
+}
+.nav button:hover { transform: translateY(-2px); box-shadow: 0 8px 22px rgba(0,0,0,0.2); }
+.nav button:active { transform: translateY(0); }
+.pilih-btn { padding: 13px 44px !important; font-size: 15px !important; }
+
+/* ===== DIVIDER ===== */
+.divider {
+  width: 70px; height: 4px; border-radius: 2px;
+  background: rgba(0,0,0,0.08);
+  margin: 36px 0 28px;
+}
+
+/* ===== MASCOT 2.5D SECTION ===== */
+.mascot-section {
+  display: flex; flex-direction: column; align-items: center; gap: 14px;
+  width: 100%;
+}
+.mascot-title {
+  font-size: 13px; font-weight: 700; color: rgba(0,0,0,0.42);
+  letter-spacing: 0.06em; text-transform: uppercase;
+}
+.mascot-name-display {
+  font-size: 22px; font-weight: 800; color: var(--accent);
+  margin-top: -6px;
+  transition: color 0.5s;
+}
+.mascot-canvas-wrap {
+  position: relative; width: 280px; height: 280px;
+}
+#mascot-canvas {
+  display: block; border-radius: 50%; cursor: pointer;
+  background: radial-gradient(circle at 38% 38%, var(--glow-a) 0%, var(--base) 80%);
+  box-shadow: 0 10px 36px rgba(0,0,0,0.12);
+  transition: background 0.5s;
+}
+@keyframes jump-in {
+  0%   { transform: translateY(60px) scale(0.7); opacity: 0; }
+  55%  { transform: translateY(-18px) scale(1.08); opacity: 1; }
+  75%  { transform: translateY(4px) scale(0.97); }
+  90%  { transform: translateY(-6px) scale(1.02); }
+  100% { transform: translateY(0) scale(1); opacity: 1; }
+}
+.mascot-canvas-wrap.jumping #mascot-canvas {
+  animation: jump-in 0.65s cubic-bezier(.34,1.56,.64,1) forwards;
+}
+
+/* ===== STATE BUTTONS ===== */
+.state-section {
+  display: flex; flex-wrap: wrap; justify-content: center; gap: 8px;
+  max-width: 440px; padding: 0 16px; margin-top: 10px;
+}
+.state-btn {
+  padding: 8px 14px; border-radius: 20px; border: 2px solid transparent;
+  font-size: 12px; font-weight: 700; cursor: pointer;
+  background: rgba(255,255,255,0.85); color: rgba(0,0,0,0.72);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+  transition: all 0.2s; font-family: inherit;
+}
+.state-btn:hover { background: var(--glow-a); border-color: var(--accent); }
+.state-btn.active {
+  background: var(--accent); color: #fff; border-color: var(--accent);
+  box-shadow: 0 4px 14px rgba(0,0,0,0.18);
+}
+</style>
+</head>
+<body>
+
+<h1>Pilih Temanmu</h1>
+<p class="subtitle">← geser kartu / drag / scroll / klik tombol ← →</p>
+
+<!-- CAROUSEL 3D -->
+<div class="stage" id="stage"></div>
+
+<div class="meta">
+  <div class="theme" id="themeName"></div>
+</div>
+<div class="dots" id="dots"></div>
+<div class="nav">
+  <button id="btnPrev">← Kiri</button>
+  <button class="pilih-btn" id="pilihBtn">Pilih Maskot ini</button>
+  <button id="btnNext">Kanan →</button>
+</div>
+
+<div class="divider"></div>
+
+<!-- MASCOT 2.5D -->
+<section class="mascot-section">
+  <div class="mascot-title">Tampilan 2.5D Harian</div>
+  <div class="mascot-name-display" id="mascot-name-display">Mochi</div>
+  <div class="mascot-canvas-wrap" id="canvas-wrap">
+    <canvas id="mascot-canvas" width="560" height="560" style="width:280px;height:280px"></canvas>
+  </div>
+</section>
+
+<!-- STATE BUTTONS -->
+<div class="state-section" id="state-section"></div>
+
+<!-- Dependensi Three.js dari instalasi root proyek -->
+<script type="importmap">
+{ "imports": {
+  "three": "/node_modules/three/build/three.module.js",
+  "three/addons/": "/node_modules/three/examples/jsm/",
+  "mascots/": "../../mascots/"
+} }
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
+import { MascotCanvas } from '../../mascots/core/mascot_canvas.js';
+import { THEMES } from '../../mascots/index.js';
+import { STATES } from '../../mascots/core/states.js';
+
+// ===== DATA MASKOT =====
+const MASKOTS = [
+  { id:'mochi', name:'MOCHI', desc:'Tenang & Hangat', theme:'Fresh Green',
+    accent:'#34C759', accentSoft:'#D1F5DD', base:'#F5FAF6', glowA:'#DFF5E1', glowB:'#BCE8C5',
+    file:'../../public/mascots/3d/mochi.glb' },
+  { id:'luna', name:'LUNA', desc:'Energik & Setia', theme:'Ocean Blue',
+    accent:'#007AFF', accentSoft:'#D0E8FF', base:'#F0F7FF', glowA:'#D6E9F8', glowB:'#B9D9F2',
+    file:'../../public/mascots/3d/furry.glb' },
+  { id:'bumi', name:'BUMI', desc:'Ceria & Dermawan', theme:'Sunny Yellow',
+    accent:'#FF9500', accentSoft:'#FFF0CC', base:'#FFFBF0', glowA:'#FBEBC4', glowB:'#F7DB9A',
+    file:'../../public/mascots/3d/yobao.glb' },
+];
+
+// ===== DRACO =====
+const draco = new DRACOLoader();
+draco.setDecoderPath('/public/draco/');
+
+// ===== BUILD CARDS (3D viewer dengan Centering Presisi agar tidak tenggelam) =====
+const stage = document.getElementById('stage');
+const dotsEl = document.getElementById('dots');
+
+MASKOTS.forEach((m, i) => {
+  const card = document.createElement('div');
+  card.className = 'card';
+  card.style.setProperty('--accent', m.accent);
+  card.innerHTML = `<canvas></canvas><div class="nm">${m.name}</div><div class="ds">${m.desc}</div>`;
+  stage.appendChild(card);
+  m.card = card;
+
+  // 3D viewer
+  const canvas = card.querySelector('canvas');
+  const r = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+  r.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  r.toneMapping = THREE.ACESFilmicToneMapping;
+  r.outputColorSpace = THREE.SRGBColorSpace;
+
+  const scene = new THREE.Scene();
+  const cam = new THREE.PerspectiveCamera(38, 260 / 270, 0.1, 100);
+  cam.position.set(0, 0, 3.4);
+
+  // Lighting yang natural
+  scene.add(new THREE.AmbientLight(0xFFFFFF, 1.2));
+  const dirLight = new THREE.DirectionalLight(0xFFF9E6, 1.4);
+  dirLight.position.set(2, 4, 3);
+  scene.add(dirLight);
+  const backLight = new THREE.DirectionalLight(0xD0E8FF, 0.6);
+  backLight.position.set(-2, 2, -2);
+  scene.add(backLight);
+
+  m.rotY = 0;
+  m.wrapper = null;
+
+  new GLTFLoader().setDRACOLoader(draco).load(m.file, (g) => {
+    const model = g.scene;
+
+    // Hitung bounding box awal
+    const bbox = new THREE.Box3().setFromObject(model);
+    const center = bbox.getCenter(new THREE.Vector3());
+    const size = bbox.getSize(new THREE.Vector3());
+
+    // Pindahkan model ke titik tengah lokal (0,0,0)
+    model.position.x = -center.x;
+    model.position.y = -center.y;
+    model.position.z = -center.z;
+
+    const wrapper = new THREE.Group();
+    wrapper.add(model);
+
+    // Skala model agar proporsional dan tidak terpotong (tinggi ~ 2.05 unit)
+    const maxDim = Math.max(size.x, size.y, size.z);
+    if (maxDim > 0) {
+      wrapper.scale.setScalar(2.05 / maxDim);
+    }
+    // Sedikit offset vertikal agar grounding pas di atas label nama
+    wrapper.position.y = -0.05;
+
+    scene.add(wrapper);
+    m.wrapper = wrapper;
+  });
+
+  m.render = () => {
+    r.setSize(260, 270, false);
+    r.render(scene, cam);
+  };
+
+  // Klik langsung pada kartu untuk mengaktifkannya
+  card.addEventListener('click', () => {
+    if (!dragging && Math.abs(vel) < 0.05) {
+      goTo(i);
+    }
+  });
+
+  // dot indicator
+  const d = document.createElement('div');
+  d.className = 'dot';
+  d.addEventListener('click', (e) => {
+    e.stopPropagation();
+    goTo(i);
+  });
+  dotsEl.appendChild(d);
+});
+
+// ===== CAROUSEL LOGIC & BUTTERY SPRING PHYSICS =====
+let targetIdx = 0;
+let idx = 0;
+let pos = 0;
+let vel = 0;
+let dragging = false;
+let lastX = 0;
+
+function normPos() {
+  if (pos > MASKOTS.length - 1) pos = MASKOTS.length - 1;
+  if (pos < 0) pos = 0;
+}
+
+function go(dir) {
+  targetIdx = Math.max(0, Math.min(MASKOTS.length - 1, targetIdx + dir));
+  vel = 0;
+}
+
+function goTo(i) {
+  targetIdx = Math.max(0, Math.min(MASKOTS.length - 1, i));
+  vel = 0;
+}
+
+window.go = go;
+window.goTo = goTo;
+
+// Event listener tombol navigasi
+document.getElementById('btnPrev').addEventListener('click', (e) => {
+  e.preventDefault();
+  go(-1);
+});
+document.getElementById('btnNext').addEventListener('click', (e) => {
+  e.preventDefault();
+  go(1);
+});
+
+// Pointer drag pada stage
+stage.addEventListener('pointerdown', (e) => {
+  dragging = true;
+  lastX = e.clientX;
+  vel = 0;
+});
+
+window.addEventListener('pointermove', (e) => {
+  if (!dragging) return;
+  const dx = e.clientX - lastX;
+  lastX = e.clientX;
+  pos -= dx / 340;
+  vel = -dx / 340;
+  normPos();
+});
+
+window.addEventListener('pointerup', () => {
+  if (!dragging) return;
+  dragging = false;
+  if (Math.abs(vel) > 0.06) {
+    targetIdx = Math.max(0, Math.min(MASKOTS.length - 1, Math.round(pos + Math.sign(vel) * 0.45)));
+  } else {
+    targetIdx = Math.max(0, Math.min(MASKOTS.length - 1, Math.round(pos)));
+  }
+});
+
+// Scroll wheel
+stage.addEventListener('wheel', (e) => {
+  e.preventDefault();
+  if (Math.abs(e.deltaY) > 15) {
+    go(Math.sign(e.deltaY));
+  }
+}, { passive: false });
+
+// Keyboard arrows
+window.addEventListener('keydown', (e) => {
+  if (e.key === 'ArrowLeft') go(-1);
+  if (e.key === 'ArrowRight') go(1);
+});
+
+// ===== TEMA =====
+function applyTheme(m) {
+  const r = document.documentElement.style;
+  r.setProperty('--accent', m.accent);
+  r.setProperty('--base', m.base);
+  r.setProperty('--glow-a', m.glowA);
+  r.setProperty('--glow-b', m.glowB);
+  document.getElementById('themeName').textContent = `${m.name} — Tema ${m.theme}`;
+  document.getElementById('mascot-name-display').textContent = m.name[0] + m.name.slice(1).toLowerCase();
+  document.getElementById('pilihBtn').onclick = () => alert('Dipilih: ' + m.name + ' (' + m.theme + ')');
+  document.getElementById('mascot-canvas').style.background =
+    `radial-gradient(circle at 38% 38%, ${m.glowA} 0%, ${m.base} 80%)`;
+}
+
+// ===== ANIMATION LOOP (3D carousel) =====
+const MAX_ROT = 28 * Math.PI / 180;
+const MAX_DEPTH = 200;
+const MIN_SCALE = 0.85;
+
+function loop() {
+  requestAnimationFrame(loop);
+
+  if (dragging) {
+    targetIdx = Math.max(0, Math.min(MASKOTS.length - 1, Math.round(pos)));
+    idx = targetIdx;
+  } else {
+    // Pegas mulus menuju targetIdx
+    pos += (targetIdx - pos) * 0.14;
+    vel *= 0.85;
+    idx = Math.max(0, Math.min(MASKOTS.length - 1, Math.round(pos)));
+  }
+
+  MASKOTS.forEach((m, i) => {
+    const off = i - pos;
+    const abs = Math.abs(off);
+    const clamped = Math.min(abs, 2);
+    const x = off * 350;
+    const rotY = Math.max(-MAX_ROT, Math.min(MAX_ROT, off * MAX_ROT));
+    const z = -clamped * MAX_DEPTH;
+    const scale = Math.max(MIN_SCALE, 1 - clamped * 0.08);
+    const opacity = abs > 1.8 ? 0.25 : 1 - clamped * 0.12;
+
+    m.card.style.transform = `translateX(${x}px) translateZ(${z}px) rotateY(${rotY}rad) scale(${scale})`;
+    m.card.style.opacity = opacity;
+    m.card.style.zIndex = String(100 - Math.round(abs * 10));
+    if (abs < 1.5) m.render();
+  });
+
+  dotsEl.querySelectorAll('.dot').forEach((d, i) => d.classList.toggle('on', i === targetIdx));
+
+  if (window._lastIdx !== targetIdx) {
+    window._lastIdx = targetIdx;
+    applyTheme(MASKOTS[targetIdx]);
+    switchMascot(MASKOTS[targetIdx].id);
+  }
+}
+
+// ===== MASCOT 2.5D ENGINE =====
+const EMOJIS = {
+  idle:'😊', gabut:'😑', greeting:'👋', tap:'✨', pet:'🥰',
+  happy:'😄', angry:'😠', sad:'😢', surprised:'😲',
+  listening:'👂', thinking:'🤔', annoyed:'😤', celebrate:'🎉', sleepy:'😴',
+};
+
+let engine = null;
+const stateSection = document.getElementById('state-section');
+
+STATES.forEach(s => {
+  const btn = document.createElement('button');
+  btn.className = 'state-btn' + (s === 'idle' ? ' active' : '');
+  btn.dataset.state = s;
+  btn.innerHTML = `${EMOJIS[s] ?? '▶'} ${s}`;
+  btn.onclick = () => {
+    engine?.setState(s);
+    stateSection.querySelectorAll('.state-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+  };
+  stateSection.appendChild(btn);
+});
+
+// polling sinkronisasi tombol aktif
+setInterval(() => {
+  if (!engine) return;
+  const cur = engine.p.state;
+  stateSection.querySelectorAll('.state-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.state === cur);
+  });
+}, 150);
+
+function switchMascot(id) {
+  const wrap = document.getElementById('canvas-wrap');
+  wrap.classList.remove('jumping');
+  void wrap.offsetWidth;
+  wrap.classList.add('jumping');
+  engine?.setMascot(id);
+  engine?.setState('greeting');
+  setTimeout(() => wrap.classList.remove('jumping'), 700);
+}
+
+// Init engine
+const mascotCanvas = document.getElementById('mascot-canvas');
+engine = new MascotCanvas({ canvas: mascotCanvas, mascot: 'mochi', width: 280, state: 'idle' });
+
+// Jalankan
+applyTheme(MASKOTS[0]);
+loop();
+</script>
+</body>
+</html>

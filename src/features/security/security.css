@@ -1,0 +1,12 @@
+.pin-screen { width: min(100%, 420px); min-height: calc(100dvh - 40px); margin-inline: auto; padding: clamp(20px, 6vh, 64px) 0 24px; display: flex; flex-direction: column; align-items: center; text-align: center; }
+.pin-brand { display: flex; align-items: center; gap: 8px; color: var(--accent-ink); font-size: 13px; font-weight: 800; }
+.pin-mascot { display: grid; place-items: center; margin: 26px 0 16px; width: 220px; min-height: 190px; }
+.pin-heading h1 { font-family: var(--font-display); font-size: clamp(28px, 6vw, 34px); font-weight: 700; line-height: 1.15; overflow-wrap: anywhere; }
+.pin-heading p { max-width: 290px; margin: 10px auto 0; color: var(--text-secondary); font-size: 15px; }
+.pin-form { width: 100%; margin-top: 30px; display: grid; justify-items: center; }
+.pin-form .rb-code { width: min(100%, 304px); justify-items: center; }
+.pin-feedback { min-height: 57px; padding: 12px 0; color: var(--text-secondary); font-size: 13px; }
+.pin-feedback .pin-error { color: var(--danger-ink); display: flex; justify-content: center; align-items: center; gap: 6px; }
+.pin-form > .ui-button { width: 100%; max-width: 320px; }
+.pin-privacy { margin-top: auto; padding-top: 36px; display: flex; align-items: center; justify-content: center; gap: 7px; font-size: 12px; color: var(--text-secondary); }
+@media (max-height: 720px) { .pin-mascot { margin-top: 12px; margin-bottom: 8px; min-height: 150px; } .pin-screen { padding-top: 16px; } .pin-form { margin-top: 20px; } .pin-privacy { padding-top: 24px; } }

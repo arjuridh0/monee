@@ -1,0 +1,118 @@
+/* Shell F3-7: stub screens + root navigation (bottom nav <768, sidebar ≥768, docs/03 D35/D42/D44). */
+html {
+  -webkit-text-size-adjust: 100%;
+}
+.screen-stub { display: grid; align-content: start; gap: 8px; padding: 24px 0; min-height: 40dvh; }
+.screen-stub h1 { font-family: var(--font-display); font-size: 34px; font-weight: 800; line-height: 1.1; }
+
+.bottom-nav {
+  position: fixed;
+  z-index: var(--layer-nav);
+  inset: auto 0 0 0;
+  height: var(--bottom-nav-h);
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  padding: 0 12px calc(env(safe-area-inset-bottom) * 0.5);
+  background: var(--nav-bg);
+  border-radius: 32px 32px 0 0;
+}
+/* Cekungan FAB (docs/03 §Navbar): lingkaran 60px di atas bar, warna kanvas. */
+.bottom-nav::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: 60px;
+  height: 30px;
+  transform: translateX(-50%);
+  background: var(--app-canvas);
+  border-radius: 0 0 30px 30px;
+}
+.bottom-nav .nav-item { flex: 1; }
+.nav-item {
+  display: grid;
+  place-items: center;
+  gap: 2px;
+  min-width: 56px;
+  min-height: calc(var(--control-min) + 8px);
+  border-radius: 20px;
+  color: var(--nav-text);
+  font-size: 12px;
+  font-weight: 700;
+  text-decoration: none;
+}
+.nav-item--active { color: var(--nav-active); }
+.nav-label { font-size: 11px; }
+.nav-add-label { display: none; }
+.bottom-nav-add { align-self: flex-start; }
+.nav-add {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 60px;
+  height: 60px;
+  flex-shrink: 0;
+  margin-top: -30px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--nav-accent);
+  color: var(--nav-button-ink);
+  box-shadow: var(--shadow-float);
+}
+
+.sidebar {
+  position: fixed;
+  z-index: var(--layer-nav);
+  inset: 0 auto 0 0;
+  width: var(--sidebar-tablet);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  padding: 20px 8px;
+  background: var(--nav-bg);
+}
+.sidebar-brand { align-items: center; gap: 8px; display: flex; }
+.sidebar-logo { width: 28px; height: 28px; border-radius: 50%; background: var(--nav-accent); }
+.sidebar-wordmark { display: none; font-family: var(--font-display); font-size: 20px; font-weight: 800; color: var(--nav-active); }
+.sidebar-tabs { display: grid; gap: 4px; width: 100%; }
+.sidebar-item {
+  display: grid;
+  place-items: center;
+  gap: 2px;
+  width: 100%;
+  padding: 10px 4px;
+  border-radius: 20px;
+  color: var(--nav-text);
+  font-size: 10px;
+  font-weight: 700;
+  text-decoration: none;
+}
+.sidebar-item--active { color: var(--nav-active); }
+.nav-item, .sidebar-item { position: relative; isolation: isolate; }
+.nav-active-pill { position: absolute; inset: 0; z-index: -1; border-radius: inherit; background: var(--nav-bg-2); }
+.nav-icon { display: inline-flex; }
+.tab-content-stage { position: relative; min-width: 0; }
+.tab-content { min-width: 0; }
+.sidebar-add { width: 48px; height: 48px; border-radius: 50%; background: var(--nav-accent); color: var(--nav-button-ink); font-weight: 800; margin-top: auto; margin-bottom: 12px; }
+
+@media (min-width: 1024px) {
+  .sidebar { width: var(--sidebar-desktop); padding: 24px 12px; align-items: stretch; }
+  .sidebar-wordmark { display: inline; }
+  .sidebar-item { grid-auto-flow: column; justify-content: start; gap: 10px; padding: 12px; border-radius: 18px; font-size: 14px; }
+  .sidebar-add { width: 100%; height: 48px; border-radius: 16px; align-self: center; }
+  .sidebar-add .nav-add-label { display: inline; }
+  .sidebar-add { display: flex; align-items: center; justify-content: center; gap: 6px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .nav-add, .nav-item, .sidebar-item { transition: none; }
+}
+
+.session-error-badge { display:inline-block; width:fit-content; padding:6px 12px; border-radius:var(--r-chip); background:var(--st-danger-soft); color:var(--danger-ink); font-size:12px; font-weight:800; }
+.session-error-code { font-size:12px; color:var(--text-accessible); }
+
+/* A modal is a focused task; keep root navigation out of view and the accessibility tree. */
+.app-shell:has(dialog[open]) > .bottom-nav,
+.app-shell:has(dialog[open]) > .sidebar { visibility:hidden; pointer-events:none; }

@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Button, TextField } from '@/components/ui/controls'
+import { DateField } from '@/components/ui/DateField'
 import type { Category } from '@/core/finance/types'
 import { getToday } from '@/core/finance/period'
 import { MascotCanvas } from '@/features/mascot/MascotCanvas'
@@ -29,8 +30,7 @@ export function IncomeStep({ income, categories, onNext, busy, standalone = fals
       placeholder="0" value={amount} maxLength={15} autoFocus
       onChange={event => setAmount(event.target.value)}
       {...(amount && !/^\d+$/.test(amount) ? { error: 'Isi rupiah utuh, tanpa titik atau koma.' } : {})} />
-    <TextField label="Tanggal pemasukan" type="date" value={date} max={getToday()} required
-      onChange={event => setDate(event.target.value)} />
+    <DateField label="Tanggal pemasukan" value={date} max={getToday()} disabled={busy} onChange={setDate} />
     <TextField label="Catatan (opsional)" value={note} maxLength={200}
       placeholder="Misalnya, gaji bulan ini" onChange={event => setNote(event.target.value)} />
     {!standalone && <p className="ui-helper">Pemasukan dicatat setelah pengaturan selesai. Lewati kalau kamu ingin mencatatnya nanti.</p>}

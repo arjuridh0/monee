@@ -60,6 +60,7 @@
 .pwa-install-guide li { padding-inline-start: 6px; line-height: 1.6; }
 .pwa-install-guide li svg { display: inline; vertical-align: -.15em; }
 body:has(dialog[open]) .pwa-install-prompt { display: none; }
+body:has(.date-field[data-open='true']) :is(.pwa-install-prompt,.pwa-update) { display:none; }
 @keyframes pwa-install-appear { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 @media (min-width: 768px) {
   .pwa-install-prompt { left: auto; right: 24px; bottom: 24px; margin: 0; }

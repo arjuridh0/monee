@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Button, TextField } from '@/components/ui/controls'
+import { DateField } from '@/components/ui/DateField'
 import { Dialog } from '@/components/ui/Dialog'
 import { InlineError } from '@/components/ui/feedback'
 import { FuseButton } from '@/components/reactbits/FuseButton'
@@ -51,7 +52,7 @@ export function SavingsExpenseDetail({ transaction, onClose }: { transaction: Tr
         <TextField label="Nominal (Rp)" type="number" inputMode="numeric" min={1} step={1} required value={amount}
           disabled={busy || locked} onChange={event => setAmount(event.target.value)} />
         <TextField label="Catatan" required maxLength={240} value={note} disabled={busy || locked} onChange={event => setNote(event.target.value)} />
-        <TextField label="Tanggal" type="date" max={getToday()} required value={date} disabled={busy || locked} onChange={event => setDate(event.target.value)} />
+        <DateField label="Tanggal" max={getToday()} value={date} disabled={busy || locked} onChange={setDate} />
         <label className="savings-select">Sumber dana<select value={source} disabled={busy || locked || linkedGoal}
           onChange={event => setSource(event.target.value as SavingsSource)}>
           <option value="sisa">Sisa</option><option value="allocation">Allocation</option>

@@ -3,6 +3,7 @@ import { chromium } from 'playwright'
 import assert from 'node:assert/strict'
 import { serveProduction } from './lib/production.mjs'
 import { installQaAccount } from './lib/qa-account.mjs'
+import AxeBuilder from '@axe-core/playwright'
 
 const qaAccountId = `acct_${'a'.repeat(64)}`
 const qaDatabaseName = `monee-db-${qaAccountId}`
@@ -12,7 +13,7 @@ const qaDatabaseName = `monee-db-${qaAccountId}`
 const host = await serveProduction()
 const base = host.base
 const browser = await chromium.launch({ headless: true, channel: process.env.MONEE_BROWSER ?? 'msedge' })
-const report = { ok: false, layouts: [], errors: [], checks: {} }
+const report = { ok: false, layouts: [], errors: [], checks: {}, bucketAudits: [] }
 
 async function capture(page, name) {
   const layout = await page.evaluate(() => ({ width: innerWidth, scroll: document.documentElement.scrollWidth,
@@ -98,8 +99,55 @@ try {
   }
   report.checks.responsive = true; report.checks.noAutoSave = true
 
+  // The Android system popup was invisible to desktop-only closed-field checks.
+  // Exercise open choices in every theme, including real keyboard cancellation.
+  for (const theme of ['Mochi', 'Luna', 'Bumi']) {
+    await page.getByRole('link', { name: 'Atur', exact: true }).click()
+    await page.getByRole('button', { name: /^Maskot & Tema/ }).click()
+    await page.getByRole('option', { name: new RegExp(theme) }).click()
+    await page.getByRole('button', { name: 'Pilih Maskot ini', exact: true }).click()
+    await page.getByRole('dialog').waitFor({ state: 'hidden' })
+    for (const width of [320, 390, 1440]) {
+      await page.setViewportSize({ width, height: 900 })
+      await voice(page)
+      await page.getByLabel('Ucapan atau teks transaksi').fill('makan dua puluh lima ribu')
+      await page.getByRole('button', { name: 'Buat draft' }).click()
+      await page.getByRole('button', { name: 'Bucket Kebutuhan Pokok', exact: true }).click()
+      const list = page.getByRole('listbox', { name: 'Pilihan Bucket', exact: true })
+      await list.waitFor()
+      const choicesVisible = await list.evaluate(node => {
+        const dialog = node.closest('dialog')
+        const top = dialog.querySelector('.ui-dialog-header').getBoundingClientRect().bottom
+        const bottom = dialog.querySelector('.ui-dialog-footer').getBoundingClientRect().top
+        return [...node.querySelectorAll('[role="option"]')].every(option => {
+          const r = option.getBoundingClientRect()
+          return r.top >= top && r.bottom <= bottom
+        })
+      })
+      assert.ok(choicesVisible, `${theme}/${width}: open choices must not hide behind the sticky footer`)
+      assert.equal(await page.getByRole('combobox', { name: 'Bucket', exact: true }).count(), 0)
+      assert.equal(await list.getByRole('option', { name: 'Tabungan', exact: true }).count(), 0)
+      await capture(page, `bucket-${theme}-${width}`)
+      const audit = await new AxeBuilder({ page }).include('.bucket-picker').withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze()
+      report.bucketAudits.push({ theme, width, violations: audit.violations })
+      assert.deepEqual(audit.violations, [], `${theme}/${width}: bucket accessibility`)
+      await page.keyboard.press('End')
+      assert.equal(await list.getByRole('option', { name: 'Fun', exact: true }).evaluate(node => node === document.activeElement), true)
+      await page.keyboard.press('Escape')
+      await list.waitFor({ state: 'hidden' })
+      assert.equal(await page.getByRole('dialog', { name: 'Review transaksi', exact: true }).isVisible(), true)
+      await page.getByRole('button', { name: 'Bucket Kebutuhan Pokok', exact: true }).click()
+      await page.getByRole('option', { name: 'Fun', exact: true }).click()
+      await page.getByRole('button', { name: 'Bucket Fun', exact: true }).waitFor()
+      assert.equal(await count(page, 'makan dua puluh lima ribu'), 0)
+      await page.getByRole('button', { name: 'Tutup Review transaksi', exact: true }).click()
+    }
+  }
+  report.checks.themedBucketPicker = true
+
   // Managed service settings explain sharing and access without credentials.
   await page.getByRole('link', { name: 'Atur', exact: true }).click()
+  const savedThemeBeforePreview = await page.evaluate(() => document.documentElement.dataset.mascot)
   await page.getByRole('button', { name: /^Layanan suara/ }).click()
   await page.getByText(/server Monee.*Groq/).waitFor()
   assert.equal(await page.getByRole('dialog').locator('input').count(), 0)
@@ -184,7 +232,7 @@ try {
   await page.getByRole('option', { name: /Luna/ }).click()
   await page.waitForFunction(() => document.documentElement.dataset.mascot === 'luna')
   await page.getByRole('button', { name: 'Kembali dari Maskot & Tema' }).click()
-  await page.waitForFunction(() => document.documentElement.dataset.mascot === 'mochi')
+  await page.waitForFunction(saved => document.documentElement.dataset.mascot === saved, savedThemeBeforePreview)
   await page.getByRole('button', { name: /^Maskot & Tema/ }).click()
   await page.getByRole('option', { name: /Luna/ }).click()
   await page.getByRole('button', { name: 'Pilih Maskot ini', exact: true }).click()

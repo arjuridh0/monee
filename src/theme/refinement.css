@@ -166,6 +166,19 @@ html { scroll-padding-block:24px calc(var(--bottom-nav-h) + 32px); }
   .app-shell .ui-dialog--immersive { height:min(800px,100dvh); }
   .app-shell .app-workspace { padding-top:32px; }
 }
+@media (max-width:767px) {
+  /* The active bottom tab names the page; keep semantic headings for assistive technology. */
+  .app-shell :is(.welcome-header,.history-header,.savings-header,.settings-header) h1 {
+    position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip-path:inset(50%); white-space:nowrap; border:0;
+  }
+  .app-shell .app-workspace { padding-top:18px; }
+  .app-shell .welcome-dashboard { gap:16px; }
+  .app-shell .welcome-header { min-height:28px; }
+  .app-shell .welcome-header p { margin:0; }
+  .app-shell .dashboard-balance-stage { margin-top:10px; }
+  .app-shell .dashboard-hero-mascot { top:-24px; }
+  .app-shell :is(.history-header,.savings-header,.settings-header) { position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); }
+}
 @media (min-width:1024px) {
   .app-shell .sidebar-brand > span { display:block; }
   .app-shell .sidebar { padding-inline:20px; }

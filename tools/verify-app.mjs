@@ -37,7 +37,14 @@ async function add(page, amount, kind = 'expense', date) {
   await page.getByRole('button', { name: 'Tambah transaksi', exact: true }).click(); await page.getByRole('button', { name: 'Ketik manual', exact: true }).click()
   if (kind === 'income') await page.getByRole('radio', { name: 'Pemasukan', exact: true }).click()
   await page.getByLabel('Nominal (Rp)', { exact: true }).fill(String(amount))
-  if (date) await page.getByLabel('Tanggal', { exact: true }).fill(date)
+  if (date) {
+    const selected = new Date(`${date}T12:00:00Z`)
+    await page.getByLabel('Tanggal', { exact: true }).click()
+    await page.getByRole('button', { name: /Pilih bulan dan tahun/ }).click()
+    await page.getByRole('spinbutton', { name: 'Tahun kalender' }).fill(date.slice(0, 4))
+    await page.getByRole('button', { name: selected.toLocaleDateString('id-ID', { month: 'long', timeZone: 'UTC' }), exact: true }).click()
+    await page.getByRole('button', { name: selected.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' }), exact: true }).click()
+  }
   await page.getByRole('button', { name: 'Simpan', exact: true }).click()
 }
 async function settled(page) { await page.getByRole('dialog').waitFor({ state: 'hidden' }) }
@@ -510,6 +517,61 @@ try {
     assert.equal(await page.getByRole('heading', { name: 'Ruang coba UI', exact: true }).count(), 0)
   }))
 
+  await scenario(24, 'Themed calendar and cross-period date filters keep mobile headings compact', () => fixture(async page => {
+    await go(page, 'Home')
+    assert.equal(await page.getByText('Reset Rp0 setiap periode; sisanya masuk Sisa.', { exact: true }).count(), 0)
+    const home = await page.evaluate(() => ({ titleClipped: getComputedStyle(document.querySelector('.welcome-header h1')).clipPath,
+      cardTop: document.querySelector('.dashboard-balance-stage').getBoundingClientRect().top }))
+    assert.equal(home.titleClipped, 'inset(50%)'); assert.ok(home.cardTop < 115, `Balance starts too low: ${home.cardTop}`)
+    await go(page, 'Riwayat')
+    await page.locator('.history-filters > summary').click()
+    await page.evaluate(() => window.dispatchEvent(Object.assign(new Event('beforeinstallprompt', { cancelable: true }), {
+      prompt: async () => {}, userChoice: Promise.resolve({ outcome: 'dismissed' }),
+    })))
+    await page.locator('.pwa-install-prompt').waitFor({ state: 'visible' })
+    await page.getByLabel('Dari tanggal', { exact: true }).click()
+    assert.equal(await page.locator('.pwa-install-prompt').isVisible(), false, 'Install invitation must yield to the open calendar')
+    await page.keyboard.press('Escape')
+    await page.locator('.pwa-install-prompt').waitFor({ state: 'visible' })
+    await page.getByRole('button', { name: 'Nanti', exact: true }).click()
+    await page.getByRole('button', { name: '30 hari terakhir', exact: true }).click()
+    assert.equal(await page.getByRole('button', { name: /Pemasukan lama/ }).count(), 1)
+    for (const [label, day] of [['Dari tanggal', '2026-09-01'], ['Sampai tanggal', '2026-09-30']]) {
+      const date = new Date(`${day}T12:00:00Z`)
+      await page.getByLabel(label, { exact: true }).click()
+      await page.getByRole('button', { name: /Pilih bulan dan tahun/ }).click()
+      await page.getByRole('spinbutton', { name: 'Tahun kalender' }).fill('2026')
+      await page.getByRole('button', { name: 'September', exact: true }).click()
+      await page.getByRole('button', { name: date.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' }), exact: true }).click()
+    }
+    assert.equal(await page.getByRole('region', { name: 'Ringkasan periode' }).getByText('Rp25.000', { exact: true }).count(), 2)
+    assert.equal(await page.getByRole('button', { name: /Pemasukan lama/ }).count(), 1)
+    assert.equal(await page.getByRole('button', { name: 'Periode selanjutnya', exact: true }).isDisabled(), true)
+    await page.getByRole('button', { name: 'Kembali ke periode', exact: true }).click()
+    assert.equal(await page.getByRole('button', { name: /Pemasukan lama/ }).count(), 0)
+    await page.getByLabel('Dari tanggal', { exact: true }).click()
+    await page.keyboard.press('Escape')
+    assert.equal(await page.getByRole('grid').count(), 0)
+    await page.getByRole('button', { name: 'Reset filter', exact: true }).click()
+    await page.setViewportSize({ width: 320, height: 568 })
+    await page.getByRole('button', { name: 'Tambah transaksi', exact: true }).click()
+    await page.getByRole('button', { name: 'Ketik manual', exact: true }).click()
+    await page.getByLabel('Tanggal', { exact: true }).click({ timeout: 5000 })
+    assert.equal(await page.getByRole('grid').isVisible(), true)
+    await page.waitForFunction(() => getComputedStyle(document.querySelector('.date-calendar')).opacity === '1')
+    const calendarFits = await page.evaluate(() => {
+      const calendar = document.querySelector('.date-calendar').getBoundingClientRect()
+      const footer = document.querySelector('dialog[open] .ui-dialog-footer').getBoundingClientRect()
+      return { fits: calendar.bottom <= footer.top && calendar.top >= document.querySelector('dialog[open] .ui-dialog-header').getBoundingClientRect().bottom,
+        calendar: calendar.toJSON(), footer: footer.toJSON(), header: document.querySelector('dialog[open] .ui-dialog-header').getBoundingClientRect().toJSON(), max: document.querySelector('.date-calendar-grid').style.maxHeight }
+    })
+    assert.equal(calendarFits.fits, true, `Calendar must remain above sticky actions: ${JSON.stringify(calendarFits)}`)
+    await page.keyboard.press('Escape'); assert.equal(await page.getByRole('dialog').isVisible(), true)
+    await page.keyboard.press('Escape'); await settled(page)
+    await page.setViewportSize({ width: 1440, height: 900 }); await go(page, 'Home')
+    assert.equal(await page.locator('.welcome-header h1').evaluate(node => getComputedStyle(node).clipPath), 'none')
+  }, { txs: [income, { ...income, id: 'old-income', amount: 25000, date: '2026-09-30', note: 'Pemasukan lama' }] }))
+
   if (!process.argv[2]) {
   // Layout/keyboard/contrast sweep, all mascot themes with real production header enforcement.
   await fixture(async (page, context) => {
@@ -543,6 +605,16 @@ try {
           report.accessibility.push({ theme: name, width, page: 'Riwayat', violations: audit.violations.map(row => ({ id: row.id, impact: row.impact, nodes: row.nodes.map(node => ({ target: node.target, summary: node.failureSummary, html: node.html.slice(0, 500), checks: [...node.any, ...node.all].map(check => ({ data: check.data, related: check.relatedNodes })) })) })) })
         }
         await page.getByText('Grafik periode', { exact: true }).click()
+      }
+      for (const width of [320, 390, 1440]) {
+        await page.setViewportSize({ width, height: 900 }); await go(page, 'Riwayat')
+        await page.locator('.history-filters > summary').click()
+        await page.getByLabel('Dari tanggal', { exact: true }).click()
+        assert.equal(await page.getByRole('grid').isVisible(), true)
+        assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true)
+        await auditSurface(page, name, width, 'Filter tanggal: kalender')
+        await page.keyboard.press('Escape')
+        await page.locator('.history-filters > summary').click()
       }
       for (const tab of ['Home', 'Tabungan', 'Atur']) for (const width of [375, 1440]) {
         await page.setViewportSize({ width, height: 900 }); await go(page, tab); await page.waitForTimeout(180)
@@ -578,6 +650,10 @@ try {
         await page.getByRole('button', { name: 'Tambah transaksi', exact: true }).click(); await page.getByRole('button', { name: 'Ketik manual', exact: true }).click()
         await page.getByLabel('Nominal (Rp)', { exact: true }).waitFor()
         await auditSurface(page, name, width, 'Catat: manual')
+        await page.getByLabel('Tanggal', { exact: true }).click()
+        await auditSurface(page, name, width, 'Catat: kalender')
+        await page.keyboard.press('Escape')
+        assert.equal(await page.getByRole('dialog').isVisible(), true, 'Calendar Escape must preserve the draft')
         await page.getByRole('button', { name: 'Scan struk', exact: true }).click()
         await page.getByLabel('Foto struk', { exact: true }).waitFor()
         assert.equal(await page.getByRole('checkbox').count(), 0)
@@ -626,7 +702,7 @@ try {
   }
   }
   report.deviceMatrix = report.layouts.map(row => ({ theme: row.theme, width: row.width, browser: 'Edge Chromium', kind: 'desktop viewport emulation', pass: true }))
-  report.ok = report.scenarios.length === (process.argv[2] ? 1 : 23) && report.scenarios.every(row => row.pass) && !report.errors.length
+  report.ok = report.scenarios.length === (process.argv[2] ? 1 : 24) && report.scenarios.every(row => row.pass) && !report.errors.length
     && report.accessibility.every(row => !row.violations.length) && report.performance.every(row => row.interactiveMs < 1000)
   if (!report.ok) process.exitCode = 1
 } catch (error) { report.failure = error.stack; process.exitCode = 1 }

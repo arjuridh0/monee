@@ -4,10 +4,13 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testi
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { QuickAddDialog } from '@/features/transactions/QuickAddDialog'
 import { openDatabase, resetDbSingleton } from '@/core/db/migrations'
-import { seedDefaultData, transactionRepo } from '@/core/db/repositories'
+import { seedDefaultData, transactionRepo, profileRepo } from '@/core/db/repositories'
 import { useMoneeStore } from '@/store'
 import { getToday } from '@/core/finance/period'
 import { HistoryScreen } from '@/features/history/HistoryScreen'
+import { WelcomeDashboard } from '@/features/onboarding/WelcomeDashboard'
+import userEvent from '@testing-library/user-event'
+import { MemoryRouter } from 'react-router-dom'
 vi.mock('@/features/mascot/MascotCanvas', () => ({ MascotCanvas: () => <span>Teman Monee</span> }))
 
 beforeEach(async () => {
@@ -18,6 +21,40 @@ beforeEach(async () => {
   await useMoneeStore.getState().load()
 })
 afterEach(() => { cleanup(); vi.useRealTimers(); vi.unstubAllGlobals() })
+it('applies a custom date range across periods and resets back to the active period', async () => {
+  const user = userEvent.setup()
+  useMoneeStore.setState(state => ({ transactions: [...state.transactions, { id: 'old', type: 'income', amount: 25000, note: 'Pemasukan lama', date: '2024-01-15', createdAt: 0, updatedAt: 0 }] }))
+  render(<HistoryScreen />)
+  fireEvent.click(screen.getByText('Filter transaksi'))
+  expect(screen.queryByRole('button', { name: /Pemasukan lama/ })).not.toBeInTheDocument()
+  await user.click(screen.getByLabelText('Dari tanggal'))
+  await user.click(screen.getByRole('button', { name: /Pilih bulan dan tahun/ }))
+  const year = screen.getByRole('spinbutton', { name: 'Tahun kalender' })
+  await user.clear(year); await user.type(year, '2024')
+  await user.click(screen.getByRole('button', { name: 'Januari', exact: true }))
+  await user.click(screen.getByRole('button', { name: 'Senin, 1 Januari 2024' }))
+  await user.click(screen.getByLabelText('Sampai tanggal'))
+  await user.click(screen.getByRole('button', { name: /Pilih bulan dan tahun/ }))
+  await user.clear(screen.getByRole('spinbutton', { name: 'Tahun kalender' }))
+  await user.type(screen.getByRole('spinbutton', { name: 'Tahun kalender' }), '2024')
+  await user.click(screen.getByRole('button', { name: 'Januari', exact: true }))
+  await user.click(screen.getByRole('button', { name: 'Rabu, 31 Januari 2024' }))
+  expect(screen.getByRole('button', { name: /Pemasukan lama/ })).toBeVisible()
+  expect(screen.getByRole('region', { name: 'Ringkasan periode' })).toHaveTextContent('Rp25.000')
+  expect(screen.getByRole('button', { name: 'Periode selanjutnya' })).toBeDisabled()
+  await user.click(screen.getByRole('button', { name: 'Reset filter', exact: true }))
+  expect(screen.queryByRole('button', { name: /Pemasukan lama/ })).not.toBeInTheDocument()
+  expect(screen.getByLabelText('Dari tanggal')).toHaveTextContent('Pilih tanggal')
+})
+it('removes the reset explanation from the balance without removing the period or greeting', async () => {
+  await profileRepo.save(await openDatabase(), { id: 'profile', name: 'Nara', mascotId: 'luna', periodStartDay: 1, defaultBucketId: 'bucket-needs', createdAt: 1 })
+  await useMoneeStore.getState().load()
+  render(<MemoryRouter><WelcomeDashboard /></MemoryRouter>)
+  expect(screen.getByLabelText('Saldo periode')).toHaveTextContent('Rp1.000.000')
+  expect(screen.queryByText('Reset Rp0 setiap periode; sisanya masuk Sisa.')).not.toBeInTheDocument()
+  expect(screen.getByRole('heading', { name: 'Beranda' })).toBeInTheDocument()
+  expect(screen.getByText(/Hai,/)).toBeInTheDocument()
+})
 it('uses buckets without category selection and selects a usable bucket when the preferred bucket is full', async () => {
   await useMoneeStore.getState().addTransaction({ id: 'fill-needs', type: 'expense', amount: 400000, categoryId: 'cat-makan', bucketId: 'bucket-needs', date: getToday(), createdAt: 2, updatedAt: 2 })
   render(<QuickAddDialog open onClose={() => {}} />)

@@ -21,6 +21,21 @@ beforeEach(() => {
 afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.unstubAllGlobals(); Reflect.deleteProperty(navigator, 'onLine'); resetDbSingleton() })
 
 describe('voice review', () => {
+  it('offers themed bucket choices without a native mobile dropdown and saves only after confirmation', async () => {
+    render(<VoiceDialog onClose={() => {}} />)
+    fireEvent.change(screen.getByLabelText('Ucapan atau teks transaksi'), { target: { value: 'beli 20rb' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Buat draft' }))
+    expect(await screen.findByText('Draft 1 dari 1')).toBeVisible()
+    expect(screen.queryByRole('combobox', { name: 'Bucket' })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /Bucket Kebutuhan Pokok/ }))
+    expect(screen.getByRole('listbox', { name: 'Pilihan Bucket' })).toBeVisible()
+    expect(screen.queryByRole('option', { name: 'Tabungan' })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('option', { name: 'Fun' }))
+    expect(screen.getByRole('button', { name: 'Bucket Fun' })).toHaveAttribute('aria-expanded', 'false')
+    expect(useMoneeStore.getState().addTransaction).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: 'Simpan draft' }))
+    await waitFor(() => expect(useMoneeStore.getState().addTransaction).toHaveBeenCalledWith(expect.objectContaining({ bucketId: 'bucket-fun', amount: 20000 })))
+  })
   it('offers an icon microphone without a checkbox or starting capture on mount', () => {
     const start = vi.spyOn(recorder, 'startRecording')
     render(<VoiceDialog onClose={() => {}} />)
@@ -91,7 +106,7 @@ describe('voice review', () => {
     render(<VoiceDialog onClose={() => {}} />)
     fireEvent.change(screen.getByLabelText('Ucapan atau teks transaksi'), { target: { value: 'beli 20rb' } })
     fireEvent.click(screen.getByRole('button', { name: 'Buat draft' }))
-    expect(await screen.findByLabelText('Bucket')).toHaveValue('bucket-needs')
+    expect(await screen.findByRole('button', { name: 'Bucket Kebutuhan Pokok' })).toBeVisible()
     expect(screen.queryByLabelText('Kategori')).not.toBeInTheDocument()
     expect(screen.queryByText(/Perlu diperiksa:.*kategori/)).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Simpan draft' }))

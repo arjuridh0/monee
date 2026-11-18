@@ -2,6 +2,8 @@ import { useEffect, useId, useRef, useState } from 'react'
 import { ImagePlus, ScanLine } from 'lucide-react'
 import { Button, TextField } from '@/components/ui/controls'
 import { Dialog } from '@/components/ui/Dialog'
+import { BucketPicker } from '@/components/ui/BucketPicker'
+import { DateField } from '@/components/ui/DateField'
 import { InlineError } from '@/components/ui/feedback'
 import { ServiceReadiness } from '@/components/ui/ServiceReadiness'
 import { getToday, isValidDateStr } from '@/core/finance/period'
@@ -131,12 +133,13 @@ export function ReceiptDialog({ onClose, recognizer = receiptRecognizer }: { onC
       {needsLogin && <a href="/auth/refresh?service=receipt">Masuk ulang pembaca struk</a>}
       <fieldset disabled={saving || reading} className="receipt-fields">
         <TextField label="Nama toko (opsional)" value={merchant} maxLength={120} onChange={event => { setMerchant(event.target.value); setError('') }} />
-        <TextField label="Tanggal struk" type="date" max={getToday()} value={date} onChange={event => { setDate(event.target.value); setError('') }} />
+        <DateField label="Tanggal struk" max={getToday()} value={date} onChange={value => { setDate(value); setError('') }} />
         {items.map((item, index) => <section className="receipt-item" key={item.id} aria-label={`Item ${index + 1}`}>
           <h3>Item {index + 1}</h3>
           <TextField label={`Nama item ${index + 1}`} maxLength={120} value={item.label} onChange={event => edit(item.id, { label: event.target.value })} />
           <TextField label={`Nominal item ${index + 1} (Rp)`} type="number" min="1" step="1" inputMode="numeric" value={item.amount} onChange={event => edit(item.id, { amount: event.target.value })} />
-          <label className="receipt-select">Bucket item {index + 1}<select value={item.bucketId} onChange={event => edit(item.id, { bucketId: event.target.value })}>{buckets.map(bucket => <option key={bucket.id} value={bucket.id}>{bucket.name}</option>)}</select></label>
+          <BucketPicker label={`Bucket item ${index + 1}`} buckets={buckets} value={item.bucketId}
+            disabled={saving || reading} onChange={bucketId => edit(item.id, { bucketId })} />
           <Button variant="ghost" onClick={() => { setItems(current => current.filter(row => row.id !== item.id)); setError('') }}>Hapus item {index + 1}</Button>
         </section>)}
         <Button variant="secondary" disabled={items.length >= MAX_RECEIPT_ITEMS} onClick={() => setItems(current => [...current, row()])}>Tambah item</Button>

@@ -239,7 +239,6 @@ export function WelcomeDashboard() {
         <div className="dashboard-hero-mascot"><MascotCanvas mascotId={profile?.mascotId ?? 'mochi'} state={savingsFlipped ? 'happy' : 'idle'} size={190} /></div>
         <FlipCard flipped={savingsFlipped} onFlipChange={setSavingsFlipped}
           front={<div className="welcome-balance"><strong aria-label="Saldo periode" className="font-tabular">{rupiah(snapshot.balance.balance)}</strong>
-            <span>Reset Rp0 setiap periode; sisanya masuk Sisa.</span>
             <div className="dashboard-money-summary"><span className="money-income"><ArrowDownLeft size={14} /> Masuk {rupiah(snapshot.balance.totalIncome)}</span>
               <span className="money-expense"><ArrowUpRight size={14} /> Belanja {rupiah(snapshot.balance.totalExpense)}</span>
               <span className="money-savings">Ke tabungan {rupiah(snapshot.balance.totalSavingsDeposit)}</span></div>

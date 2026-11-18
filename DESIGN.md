@@ -6,7 +6,7 @@ A warm pocket ledger for everyday household money. Preserve the original cute, f
 
 ## First viewport and behavior
 
-- Name, page title and lock action; period balance is the first financial anchor. Label income, spending and savings separately.
+- Desktop shows the page title; mobile relies on the active bottom tab and keeps semantic headings visually hidden. Home retains a compact personal greeting and lock action, with the balance immediately below. Label income, spending and savings separately; omit the reset explanation.
 - One white balance surface and one grouped allowance surface; transactions remain open rows. Avoid cards inside cards.
 - Empty states use a compact companion and one clear next step. No motivational filler or decorative information panels.
 - Settings group related controls with small colored icon cues. Show readable labels and current values.
@@ -15,6 +15,8 @@ A warm pocket ledger for everyday household money. Preserve the original cute, f
 - The mobile highlight is a persistent element within each two-link group, sliding horizontally for 220 ms with no bounce or size change. Its coordinates stay local to the navbar while each route restores its own scroll position. Switching groups never carries it across the add button; reduced motion removes translation.
 - PWA installation uses one compact invitation above mobile navigation or at the desktop bottom right. Preserve the app's icon, theme and typography. Show it after setup when installation is available; defer it for seven days after dismissal. Yield to update notices and open dialogs. Safari gets an explicit installation guide.
 - Catat opens voice capture, with an 80 px icon microphone and compact manual/receipt alternatives. Opening the sheet never starts capture. Keep the mascot stage frameless and stable between listening/loading states. No consent checkboxes: retain provider disclosure and explicit microphone/read actions. Selecting a receipt never uploads it.
+- Voice and receipt review use the same in-form bucket picker: a named icon, full bucket name, themed selected row and check mark. Opening the list reveals choices above the sticky save footer. Support touch, arrows, type-ahead, Enter and Escape; choosing a bucket only edits the draft. No native mobile bucket dropdown or nested modal.
+- Dates use one themed, inline calendar across history, manual entry, voice review, receipts, onboarding income and savings edits. Weeks begin Monday; show selected and current dates distinctly. Support month/year selection, arrows, Home/End, PageUp/PageDown and Escape without closing the containing form. Keep day rows 44 px tall and columns evenly spaced on narrow phones. PWA invitations and update banners yield to an open calendar. History offers 7/30-day shortcuts; a custom range replaces period bounds for both summary and transactions, and has an explicit return-to-period action.
 - Keep savings empty states compact, with the companion beside the explanation and action. Disabled controls keep readable neutral ink; busy controls retain their action color. All primary actions use white text on a sufficiently dark mascot accent, including Bumi amber #9C641D.
 
 ## System

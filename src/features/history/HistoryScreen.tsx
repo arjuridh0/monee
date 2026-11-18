@@ -1,7 +1,8 @@
 import { getConfiguredPeriod, offsetPeriod } from '@/core/finance/period-config'
 import { useMemo, useState } from 'react'
-import { ArrowLeft, ArrowRight } from 'lucide-react'
+import { ArrowLeft, ArrowRight, ChevronDown, SlidersHorizontal } from 'lucide-react'
 import { Button, Card, TextField } from '@/components/ui/controls'
+import { DateField } from '@/components/ui/DateField'
 import { InlineError } from '@/components/ui/feedback'
 import { Dialog } from '@/components/ui/Dialog'
 import { RubberSegment } from '@/components/reactbits/RubberSegment'
@@ -159,7 +160,7 @@ function TransactionDetail({ transaction, onClose, locked }: { transaction: Tran
         <option value="income">Pemasukan</option><option value="expense">Pengeluaran</option><option value="savings_deposit">Setoran tabungan</option>
       </select></label>
       <TextField label="Nominal transaksi" type="number" inputMode="numeric" min="1" step="1" value={amount} onChange={event => { setAmount(event.target.value); setError('') }} />
-      <TextField label="Tanggal transaksi" type="date" max={getToday()} value={date} onChange={event => { setDate(event.target.value); setError('') }} />
+      <DateField label="Tanggal transaksi" max={getToday()} value={date} disabled={busy} onChange={value => { setDate(value); setError('') }} />
       {type !== 'income' && <label htmlFor="history-edit-bucket">Bucket<select id="history-edit-bucket" value={selectableBucketId} disabled={busy || type === 'savings_deposit'} onChange={event => setBucketId(event.target.value)}>
         {type === 'savings_deposit' ? buckets.filter(item => item.isSavings).map(item => <option key={item.id} value={item.id}>{item.name}</option>) : editableBuckets.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
       </select></label>}
@@ -199,7 +200,10 @@ export function HistoryScreen() {
   const [query, setQuery] = useState('')
   const [selected, setSelected] = useState<Transaction | null>(null)
   const today = getToday()
-  const range = getRange(mode, today, offset, profile?.periodStartDay ?? 1, profile?.periodChanges)
+  const customRange = Boolean(dateFrom || dateTo)
+  const range = customRange
+    ? { start: dateFrom || '0001-01-01', end: dateTo || today, key: 'custom' }
+    : getRange(mode, today, offset, profile?.periodStartDay ?? 1, profile?.periodChanges)
   const mainTransactions = transactions.filter(transaction => !transaction.deleted && transaction.type !== 'savings_expense')
   const periodTransactions = mainTransactions.filter(transaction => isInPeriod(transaction.date, range))
   const summary = calcBalance(periodTransactions)
@@ -227,10 +231,15 @@ export function HistoryScreen() {
     return [...map.entries()].map(([date, items]) => ({ date, items, totals: calcBalance(items) }))
   }, [visibleTransactions])
 
-  const rangeLabel = mode === 'day'
+  const rangeLabel = customRange
+    ? `${dateFrom ? displayDate(dateFrom, { day: 'numeric', month: 'short', year: 'numeric' }) : 'Awal pencatatan'} – ${displayDate(range.end, { day: 'numeric', month: 'short', year: 'numeric' })}`
+    : mode === 'day'
     ? displayDate(range.start, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
     : `${displayDate(range.start, { day: 'numeric', month: 'short' })} – ${displayDate(range.end, { day: 'numeric', month: 'short', year: 'numeric' })}`
-  const canGoForward = range.end < today
+  const canGoForward = !customRange && range.end < today
+  const filterCount = [typeFilter !== 'all', bucketFilter !== 'all', Boolean(minimum || maximum), customRange, Boolean(query)].filter(Boolean).length
+  const clearDates = () => { setDateFrom(''); setDateTo('') }
+  const recentDays = (days: number) => { setDateFrom(shiftDay(today, 1 - days)); setDateTo(today) }
   const resetFilters = () => {
     setTypeFilter('all'); setBucketFilter('all')
     setMinimum(''); setMaximum(''); setDateFrom(''); setDateTo(''); setQuery('')
@@ -241,10 +250,10 @@ export function HistoryScreen() {
     <RubberSegment aria-label="Periode riwayat" items={[
       { value: 'day', label: 'Hari' }, { value: 'week', label: 'Minggu' },
       { value: 'month', label: 'Bulan' }, { value: 'year', label: 'Tahun' },
-    ]} value={mode} onChange={value => { setMode(value as PeriodMode); setOffset(0) }} />
+    ]} value={mode} onChange={value => { setMode(value as PeriodMode); setOffset(0); clearDates() }} />
     <div className="history-range">
-      <button type="button" aria-label="Periode sebelumnya" onClick={() => setOffset(value => value - 1)}><ArrowLeft size={18} /></button>
-      <strong>{rangeLabel}</strong>
+      <button type="button" aria-label="Periode sebelumnya" disabled={customRange} onClick={() => setOffset(value => value - 1)}><ArrowLeft size={18} /></button>
+      <div className="history-range-copy"><strong aria-live="polite">{rangeLabel}</strong>{customRange && <button type="button" className="history-range-reset" onClick={clearDates}>Kembali ke periode</button>}</div>
       <button type="button" aria-label="Periode selanjutnya" disabled={!canGoForward}
         onClick={() => setOffset(value => value + 1)}><ArrowRight size={18} /></button>
     </div>
@@ -255,8 +264,21 @@ export function HistoryScreen() {
       <Card><span>Sisa periode</span><strong className="font-tabular">{rupiah(summary.balance)}</strong></Card>
     </section>
     <details className="history-filters">
-      <summary>Filter transaksi</summary>
+      <summary><SlidersHorizontal size={17} aria-hidden="true" /><span>Filter transaksi</span>{filterCount > 0 && <span className="history-filter-count" aria-label={`${filterCount} filter aktif`}>{filterCount}</span>}<ChevronDown size={17} aria-hidden="true" /></summary>
       <div className="history-filter-grid">
+        <fieldset className="history-date-range">
+          <legend>Rentang tanggal</legend>
+          <div className="history-date-presets" role="group" aria-label="Pintasan tanggal">
+            <button type="button" aria-pressed={dateFrom === shiftDay(today, -6) && dateTo === today} onClick={() => recentDays(7)}>7 hari terakhir</button>
+            <button type="button" aria-pressed={dateFrom === shiftDay(today, -29) && dateTo === today} onClick={() => recentDays(30)}>30 hari terakhir</button>
+            <button type="button" aria-pressed={!customRange && mode === 'month' && offset === 0} onClick={() => { clearDates(); setMode('month'); setOffset(0) }}>Periode ini</button>
+          </div>
+          <div className="history-date-fields">
+            <DateField label="Dari tanggal" value={dateFrom} max={dateTo || today} onChange={setDateFrom} clearable />
+            <DateField label="Sampai tanggal" value={dateTo} min={dateFrom || undefined} max={today} onChange={setDateTo} clearable />
+          </div>
+          {customRange && <p className="history-date-hint">Rentang pilihanmu berlaku untuk ringkasan dan daftar transaksi.</p>}
+        </fieldset>
         <label htmlFor="history-type">Jenis transaksi<select id="history-type" aria-label="Filter tipe" value={typeFilter}
           onChange={event => setTypeFilter(event.target.value as TypeFilter)}>
           <option value="all">Semua jenis</option><option value="income">Pemasukan</option>
@@ -269,8 +291,6 @@ export function HistoryScreen() {
         </select></label>
         <TextField label="Nominal minimum" type="number" min="0" value={minimum} onChange={event => setMinimum(event.target.value)} />
         <TextField label="Nominal maksimum" type="number" min="0" value={maximum} onChange={event => setMaximum(event.target.value)} />
-        <TextField label="Dari tanggal" type="date" value={dateFrom} onChange={event => setDateFrom(event.target.value)} />
-        <TextField label="Sampai tanggal" type="date" value={dateTo} onChange={event => setDateTo(event.target.value)} />
         <TextField label="Kata kunci" type="search" value={query} onChange={event => setQuery(event.target.value)} placeholder="Cari catatan atau bucket" />
         <Button variant="ghost" onClick={resetFilters}>Reset filter</Button>
       </div>

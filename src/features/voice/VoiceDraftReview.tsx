@@ -3,6 +3,8 @@ import { Button, TextField } from '@/components/ui/controls'
 import { FuseButton } from '@/components/reactbits/FuseButton'
 import { Dialog } from '@/components/ui/Dialog'
 import { InlineError } from '@/components/ui/feedback'
+import { BucketPicker } from '@/components/ui/BucketPicker'
+import { DateField } from '@/components/ui/DateField'
 import { getToday, isValidDateStr } from '@/core/finance/period'
 import type { Transaction, TxType } from '@/core/finance/types'
 import { defaultCategoryId } from '@/core/finance/transaction-presentation'
@@ -77,14 +79,13 @@ export function VoiceDraftReview({ draft, index, total, transcript = '', issues 
           <option value="savings_deposit">Setoran tabungan</option><option value="savings_expense">Pengeluaran tabungan</option>
         </select></label>
         <TextField label="Nominal (Rp)" type="number" inputMode="numeric" min="1" step="1" value={amount} onChange={event => { setAmount(event.target.value); setError('') }} />
-        {type === 'expense' && <label className="voice-field">Bucket<select value={bucketId} onChange={event => { setBucket(event.target.value); setError('') }}>
-          <option value="">Pilih bucket</option>{buckets.filter(item => !item.isSavings).map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
-        </select></label>}
+        {type === 'expense' && <BucketPicker buckets={buckets.filter(item => !item.isSavings)} value={bucketId}
+          disabled={locked} onChange={id => { setBucket(id); setError('') }} />}
         {type === 'savings_deposit' && <p>Setoran masuk ke Dari Allocation dan memakai saldo periode.</p>}
         {type === 'savings_expense' && <label className="voice-field">Sumber tabungan<select value={source} onChange={event => setSource(event.target.value === 'allocation' ? 'allocation' : 'sisa')}>
           <option value="sisa">Sisa</option><option value="allocation">Dari Allocation</option>
         </select></label>}
-        <TextField label="Tanggal" type="date" value={date} max={getToday()} onChange={event => { setDate(event.target.value); setError('') }} />
+        <DateField label="Tanggal" value={date} max={getToday()} onChange={value => { setDate(value); setError('') }} />
         <TextField label={type === 'savings_expense' ? 'Catatan (wajib)' : 'Catatan (opsional)'} value={note} maxLength={200} onChange={event => { setNote(event.target.value); setError('') }} />
       </fieldset>
       {error && <InlineError>{error}</InlineError>}

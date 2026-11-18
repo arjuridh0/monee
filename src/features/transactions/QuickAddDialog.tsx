@@ -2,6 +2,7 @@ import { getConfiguredPeriod } from '@/core/finance/period-config'
 import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import { Mic, ScanLine } from 'lucide-react'
 import { Button, TextField } from '@/components/ui/controls'
+import { DateField } from '@/components/ui/DateField'
 import { Dialog } from '@/components/ui/Dialog'
 import { InlineError, Skeleton } from '@/components/ui/feedback'
 import { RubberSegment } from '@/components/reactbits/RubberSegment'
@@ -168,8 +169,8 @@ export function QuickAddDialog({ open, onClose, initialVoice = false }: QuickAdd
         const full = !bucket.allowOverbudget && (item?.remaining ?? 0) <= 0
         return <button type="button" key={bucket.id} disabled={full} aria-label={`${bucket.name}${full ? ' - penuh' : ''}`} aria-pressed={selectedBucketId === bucket.id} onClick={() => { setBucketId(bucket.id); setError('') }}><span className="quick-bucket-title"><CategoryIcon name={bucket.icon} size={18} />{bucket.name}{full ? ' - penuh' : ''}</span><progress aria-hidden="true" max="100" value={item?.progressPct ?? 0} /></button>
       })}</div>}
-      <TextField label="Tanggal" type="date" value={date} max={getToday()} required
-        onChange={event => { setDate(event.target.value); setError('') }} disabled={busy} />
+      <DateField label="Tanggal" value={date} max={getToday()}
+        onChange={value => { setDate(value); setError('') }} disabled={busy} />
       <TextField label="Catatan (opsional)" value={note} maxLength={200}
         placeholder="Tambahkan catatan" onChange={event => setNote(event.target.value)} disabled={busy} />
       </fieldset>

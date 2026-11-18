@@ -21,17 +21,18 @@ export class ChangePinError extends Error {
 }
 
 export interface ChangePinInput {
-  currentPin: string
+  remove?: boolean
+  currentPin?: string
   newPin: string
   /** Hash shown to the user; a mismatch means another tab changed the PIN. */
   expectedPinHash: string
 }
 
 export async function changePin(db: MoneeDB, input: ChangePinInput): Promise<Profile> {
-  if (!/^\d{6}$/.test(input.newPin)) {
+  if (!input.remove && !/^\d{6}$/.test(input.newPin)) {
     throw new ChangePinError('ERR_PIN_FORMAT', 'PIN baru harus terdiri dari 6 angka.')
   }
-  if (input.currentPin === input.newPin) {
+  if (!input.remove && input.currentPin === input.newPin) {
     throw new ChangePinError('ERR_PIN_SAME', 'PIN baru harus berbeda dari PIN sekarang.')
   }
 
@@ -39,16 +40,19 @@ export async function changePin(db: MoneeDB, input: ChangePinInput): Promise<Pro
   if (!current) {
     throw new ChangePinError('ERR_PROFILE_MISSING', 'Profil belum tersedia. Muat ulang Monee.')
   }
-  if (!current.pinHash || current.pinHash !== input.expectedPinHash) {
+  if (current.pinHash !== input.expectedPinHash) {
     throw new ChangePinError('ERR_PROFILE_STALE', 'PIN sudah berubah di tab lain. Muat ulang Monee.')
   }
-  if (!(await verifyPin(input.currentPin, current.pinHash, current.pinSalt))) {
+  if (current.pinHash && !(await verifyPin(input.currentPin ?? '', current.pinHash, current.pinSalt))) {
     throw new ChangePinError('ERR_CURRENT_PIN', 'PIN sekarang belum cocok.')
+  }
+  if (!current.pinHash && (current.pinSalt || input.expectedPinHash !== '')) {
+    throw new ChangePinError('ERR_PROFILE_STALE', 'Pengaturan PIN berubah di tab lain. Muat ulang Monee.')
   }
 
   // Web Crypto must finish before opening IDB's short-lived transaction.
-  const pinSalt = generateSalt()
-  const pinHash = await hashPin(input.newPin, pinSalt)
+  const pinSalt = input.remove ? '' : generateSalt()
+  const pinHash = input.remove ? '' : await hashPin(input.newPin, pinSalt)
 
   const tx = db.transaction(['profile', 'lockout'], 'readwrite')
   try {
@@ -56,7 +60,7 @@ export async function changePin(db: MoneeDB, input: ChangePinInput): Promise<Pro
     if (!stored) {
       throw new ChangePinError('ERR_PROFILE_MISSING', 'Profil belum tersedia. Muat ulang Monee.')
     }
-    if (stored.pinHash !== input.expectedPinHash) {
+    if (stored.pinHash !== input.expectedPinHash || stored.pinSalt !== current.pinSalt) {
       throw new ChangePinError('ERR_PROFILE_STALE', 'PIN sudah berubah di tab lain. Muat ulang Monee.')
     }
     const latest = { ...stored, pinHash, pinSalt }

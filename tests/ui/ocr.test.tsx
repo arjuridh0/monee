@@ -1,14 +1,17 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { webcrypto } from 'node:crypto'
 import { DEFAULT_BUCKETS, DEFAULT_CATEGORIES } from '@/core/db/repositories'
 import { useMoneeStore } from '@/store'
 import { ReceiptDialog } from '@/features/ocr/ReceiptDialog'
+import { ReceiptAccessError } from '@/features/ocr/provider'
 import type { ReceiptRecognizer, ReceiptResult } from '@/features/ocr/receipt'
 import { QuickAddDialog } from '@/features/transactions/QuickAddDialog'
+import { PNG_BASE64, imageBytes } from '../ocr/fixtures'
 
 const save = vi.fn()
-const file = () => new File(['receipt'], 'receipt.jpg', { type: 'image/jpeg' })
+const file = () => new File([imageBytes(PNG_BASE64)], 'receipt.png', { type: 'image/png' })
 function upload(value = file()) { fireEvent.change(screen.getByLabelText('Foto struk'), { target: { files: [value] } }) }
 beforeEach(() => {
   vi.stubGlobal('crypto', webcrypto)
@@ -20,6 +23,26 @@ beforeEach(() => {
   }, true)
 })
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); Reflect.deleteProperty(document, 'visibilityState') })
+
+it('can read a selected receipt without a consent checkbox and waits for the explicit read action', () => {
+  const recognize = vi.fn()
+  render(<ReceiptDialog onClose={() => {}} recognizer={recognize} />)
+  expect(screen.queryByRole('checkbox')).not.toBeInTheDocument()
+  expect(screen.getByRole('button', { name: 'Baca otomatis' })).toBeDisabled()
+  upload()
+  expect(screen.getByRole('button', { name: 'Baca otomatis' })).toBeEnabled()
+  expect(recognize).not.toHaveBeenCalled()
+})
+
+it('describes the explicit read action and Google terms without blocking it with a checkbox', () => {
+  render(<ReceiptDialog onClose={() => {}} />)
+  expect(screen.getByText(/Tutup informasi pribadi\/nomor kartu sebelum mengirim\. Kebijakan pemakaian data mengikuti paket Google\./)).toBeVisible()
+  const terms = screen.getByRole('link', { name: 'Ketentuan penggunaan data Google Gemini (tab baru)' })
+  expect(terms).toHaveAttribute('href', 'https://ai.google.dev/gemini-api/terms')
+  expect(terms).toHaveAttribute('target', '_blank')
+  expect(terms).toHaveAttribute('rel', 'noopener noreferrer')
+  expect(screen.getByRole('button', { name: 'Baca otomatis' })).toHaveAccessibleDescription(/Tutup informasi pribadi\/nomor kartu sebelum mengirim/)
+})
 
 it('opens lazy receipt entry from quick add', async () => {
   render(<QuickAddDialog open onClose={() => {}} />)
@@ -33,10 +56,9 @@ it('formats reviewed totals using the saved currency preference', () => {
   fireEvent.change(screen.getByLabelText('Nominal item 1 (Rp)'), { target: { value: '12000' } })
   expect(screen.getByText('Total item: 12.000')).toBeVisible()
 })
-it('honestly reports the unconfigured model and supports reviewed manual batch save', async () => {
+it('supports reviewed manual batch save with bucket-only selection and an internal category', async () => {
   const close = vi.fn()
   render(<ReceiptDialog onClose={close} />)
-  expect(screen.getByText(/Model pembaca otomatis belum dikonfigurasi/)).toBeVisible()
   expect(screen.getByRole('button', { name: 'Baca otomatis' })).toBeDisabled()
   fireEvent.change(screen.getByLabelText('Nama toko (opsional)'), { target: { value: 'Warung' } })
   fireEvent.change(screen.getByLabelText('Nama item 1'), { target: { value: 'Nasi' } })
@@ -46,12 +68,12 @@ it('honestly reports the unconfigured model and supports reviewed manual batch s
   fireEvent.change(screen.getByLabelText('Nominal item 2 (Rp)'), { target: { value: '5000' } })
   expect(screen.getByText('Total item: Rp17.000')).toBeVisible()
   expect(save).not.toHaveBeenCalled()
-  expect(screen.getByLabelText('Kategori item 1').querySelector('[value="cat-tabungan"]')).toBeNull()
+  expect(screen.queryByLabelText('Kategori item 1')).toBeNull()
   expect(screen.getByLabelText('Bucket item 1').querySelector('[value="bucket-savings"]')).toBeNull()
   fireEvent.click(screen.getByRole('button', { name: 'Simpan semua item' }))
   await waitFor(() => expect(close).toHaveBeenCalledOnce())
   expect(save).toHaveBeenCalledOnce()
-  expect(save.mock.calls[0]![0]).toEqual([expect.objectContaining({ amount: 12000, type: 'expense', note: 'Warung · Nasi' }), expect.objectContaining({ amount: 5000, note: 'Warung · Kopi' })])
+  expect(save.mock.calls[0]![0]).toEqual([expect.objectContaining({ amount: 12000, type: 'expense', categoryId: 'cat-lain-exp', note: 'Warung · Nasi' }), expect.objectContaining({ amount: 5000, note: 'Warung · Kopi' })])
 })
 it('validates files, revokes previews on replacement and unmount, and never reads automatically on upload', () => {
   const recognize = vi.fn()
@@ -64,6 +86,61 @@ it('validates files, revokes previews on replacement and unmount, and never read
   expect(recognize).not.toHaveBeenCalled()
   view.unmount()
   expect(URL.revokeObjectURL).toHaveBeenCalledTimes(2)
+})
+it('announces the selected filename, retains a valid photo after a rejected replacement, and removes only the photo', () => {
+  const recognize = vi.fn()
+  render(<ReceiptDialog onClose={() => {}} recognizer={recognize} />)
+  fireEvent.change(screen.getByLabelText('Nama item 1'), { target: { value: 'Draft saya' } })
+  upload(); expect(screen.getByLabelText('Foto struk')).toHaveAccessibleDescription(/Foto dipilih: receipt.png/)
+  expect(screen.getByText('Foto dipilih: receipt.png')).toBeVisible()
+  upload(new File(['<html>'], 'not-a-photo.html', { type: 'text/html' }))
+  expect(screen.getByRole('img', { name: 'Pratinjau foto struk' })).toBeVisible()
+  expect(screen.getByText('Foto dipilih: receipt.png')).toBeVisible()
+  expect(URL.revokeObjectURL).not.toHaveBeenCalled()
+  fireEvent.click(screen.getByRole('button', { name: 'Hapus foto struk' }))
+  expect(screen.queryByRole('img', { name: 'Pratinjau foto struk' })).toBeNull()
+  expect(screen.queryByRole('button', { name: 'Hapus foto struk' })).toBeNull()
+  expect(screen.getByText('Belum ada foto dipilih.')).toBeVisible()
+  expect(screen.getByLabelText('Foto struk')).toHaveFocus()
+  expect(screen.queryByRole('checkbox')).not.toBeInTheDocument()
+  expect(screen.getByRole('button', { name: 'Baca otomatis' })).toBeDisabled()
+  expect(screen.getByLabelText('Nama item 1')).toHaveValue('Draft saya')
+  expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:receipt')
+  expect(recognize).not.toHaveBeenCalled()
+  upload()
+  expect(screen.getByText('Foto dipilih: receipt.png')).toBeVisible()
+  expect(screen.getByRole('button', { name: 'Baca otomatis' })).toBeEnabled()
+})
+it('opens receipt from the default voice entry and returns to voice when dismissed', async () => {
+  render(<QuickAddDialog open initialVoice onClose={() => {}} />)
+  expect(await screen.findByRole('button', { name: 'Mulai rekam' })).toBeEnabled()
+  fireEvent.click(screen.getByRole('button', { name: 'Scan struk' }))
+  expect(await screen.findByLabelText('Foto struk')).toBeVisible()
+  fireEvent.click(screen.getByRole('button', { name: 'Tutup Scan struk' }))
+  expect(await screen.findByRole('button', { name: 'Mulai rekam' })).toBeEnabled()
+  expect(screen.queryByRole('checkbox')).not.toBeInTheDocument()
+})
+it('updates the filename and releases the previous preview when replacing a photo', () => {
+  render(<ReceiptDialog onClose={() => {}} recognizer={vi.fn()} />)
+  upload(); upload(new File([imageBytes(PNG_BASE64)], 'receipt-2.png', { type: 'image/png' }))
+  expect(screen.getByLabelText('Foto struk')).toHaveAccessibleDescription(/Foto dipilih: receipt-2.png/)
+  expect(screen.queryByText('Foto dipilih: receipt.png')).toBeNull()
+  expect(screen.queryByRole('checkbox')).not.toBeInTheDocument()
+  expect(URL.revokeObjectURL).toHaveBeenCalledTimes(1)
+})
+it('retains the native file selection until removal and lets the same photo be chosen again', async () => {
+  const user = userEvent.setup()
+  render(<ReceiptDialog onClose={() => {}} />)
+  const input = screen.getByLabelText<HTMLInputElement>('Foto struk')
+  const photo = file()
+  await user.upload(input, photo)
+  expect(input.files).toHaveLength(1)
+  expect(input.files?.[0]).toBe(photo)
+  await user.click(screen.getByRole('button', { name: 'Hapus foto struk' }))
+  expect(input.files).toHaveLength(0)
+  await user.upload(input, photo)
+  expect(input.files?.[0]).toBe(photo)
+  expect(screen.getByText('Foto dipilih: receipt.png')).toBeVisible()
 })
 it('requires complete positive integer items and a valid nonfuture date', async () => {
   render(<ReceiptDialog onClose={() => {}} />)
@@ -118,7 +195,8 @@ it('retains IDs on failed save retry and prevents duplicate submission or close 
   fireEvent.change(screen.getByLabelText('Nama item 1'), { target: { value: 'Kopi' } })
   fireEvent.change(screen.getByLabelText('Nominal item 1 (Rp)'), { target: { value: '5000' } })
   fireEvent.click(screen.getByRole('button', { name: 'Simpan semua item' }))
-  expect(await screen.findByText('ERR_JATAH_HABIS')).toBeVisible()
+  expect(await screen.findByRole('alert')).toHaveTextContent('Jatah bucket tidak cukup. Kurangi nominal atau sesuaikan alokasi bucket.')
+  expect(screen.queryByText(/ERR_JATAH_HABIS/)).not.toBeInTheDocument()
   let done!: () => void
   save.mockImplementationOnce(() => new Promise<void>(resolve => { done = resolve }))
   fireEvent.click(screen.getByRole('button', { name: 'Simpan semua item' }))
@@ -128,4 +206,65 @@ it('retains IDs on failed save retry and prevents duplicate submission or close 
   expect(save).toHaveBeenCalledTimes(2)
   expect(save.mock.calls[0]![0]).toEqual(save.mock.calls[1]![0])
   done(); await waitFor(() => expect(close).toHaveBeenCalledOnce())
+})
+
+it('never uploads on image selection or replacement without pressing read', () => {
+  const recognize = vi.fn()
+  render(<ReceiptDialog onClose={() => {}} recognizer={recognize} />)
+  upload()
+  expect(screen.getByRole('button', { name: 'Baca otomatis' })).toBeEnabled()
+  expect(recognize).not.toHaveBeenCalled()
+  upload()
+  expect(screen.getByRole('button', { name: 'Baca otomatis' })).toBeEnabled()
+  expect(recognize).not.toHaveBeenCalled()
+})
+
+it('offers relogin after expired access and keeps the manual draft', async () => {
+  render(<ReceiptDialog onClose={() => {}} recognizer={vi.fn().mockRejectedValue(new ReceiptAccessError())} />)
+  fireEvent.change(screen.getByLabelText('Nama item 1'), { target: { value: 'Draft saya' } })
+  upload(); fireEvent.click(screen.getByRole('button', { name: 'Baca otomatis' }))
+  expect(await screen.findByRole('link', { name: 'Masuk ulang pembaca struk' })).toHaveAttribute('href', '/auth/refresh?service=receipt')
+  expect(screen.getByLabelText('Nama item 1')).toHaveValue('Draft saya')
+  expect(save).not.toHaveBeenCalled()
+})
+it('keeps manual entry usable when Gemini is not configured at runtime', async () => {
+  const fetcher = vi.fn().mockResolvedValue(new Response('', { status: 503, headers: { 'X-Monee-Error': 'service-not-configured' } }))
+  vi.stubGlobal('fetch', fetcher)
+  render(<ReceiptDialog onClose={() => {}} />)
+  upload(); fireEvent.click(screen.getByRole('button', { name: 'Baca otomatis' }))
+  expect(await screen.findByText(/Pembaca struk belum disiapkan oleh pengelola/)).toBeVisible()
+  fireEvent.change(screen.getByLabelText('Nama item 1'), { target: { value: 'Kopi manual' } })
+  fireEvent.change(screen.getByLabelText('Nominal item 1 (Rp)'), { target: { value: '8000' } })
+  fireEvent.click(screen.getByRole('button', { name: 'Simpan semua item' }))
+  await waitFor(() => expect(save).toHaveBeenCalledOnce())
+})
+it('falls back to another expense category when the legacy default is absent', async () => {
+  useMoneeStore.setState({ categories: DEFAULT_CATEGORIES.filter(item => item.id !== 'cat-lain-exp') })
+  render(<ReceiptDialog onClose={() => {}} />)
+  fireEvent.change(screen.getByLabelText('Nama item 1'), { target: { value: 'Kopi' } })
+  fireEvent.change(screen.getByLabelText('Nominal item 1 (Rp)'), { target: { value: '5000' } })
+  fireEvent.click(screen.getByRole('button', { name: 'Simpan semua item' }))
+  await waitFor(() => expect(save).toHaveBeenCalledOnce())
+  expect(save.mock.calls[0]![0][0].categoryId).toBe(DEFAULT_CATEGORIES.find(item => item.type === 'expense' && item.id !== 'cat-tabungan')!.id)
+})
+
+it('shows loading, allows cancellation, and keeps batch save locked until reading stops', async () => {
+  const fetcher = vi.fn<typeof fetch>().mockImplementation(async () => Response.json({ ready: true }))
+  vi.stubGlobal('fetch', fetcher)
+  let signal: AbortSignal | undefined
+  const recognize: ReceiptRecognizer = vi.fn((_file, nextSignal) => { signal = nextSignal; return new Promise(() => {}) })
+  render(<ReceiptDialog onClose={() => {}} recognizer={recognize} />)
+  await screen.findByText('Konfigurasi pembaca struk tersedia.')
+  expect(fetcher).toHaveBeenCalledOnce()
+  expect(fetcher.mock.calls[0]).toEqual(['/api/receipt?check=ready', expect.objectContaining({ method: 'GET', redirect: 'manual', cache: 'no-store' })])
+  upload(); fireEvent.click(screen.getByRole('button', { name: 'Baca otomatis' }))
+  expect(screen.getByText('Membaca struk…')).toHaveAttribute('role', 'status')
+  expect(screen.getByText('Membaca struk…')).toBeVisible()
+  expect(screen.getByRole('button', { name: 'Simpan semua item' })).toBeDisabled()
+  fireEvent.click(screen.getByRole('button', { name: 'Batalkan pembacaan' }))
+  expect(signal?.aborted).toBe(true)
+  expect(screen.queryByText('Membaca struk…')).toBeNull()
+  expect(screen.getByText('Konfigurasi pembaca struk tersedia.')).toHaveAttribute('role', 'status')
+  expect(screen.getByLabelText('Nama item 1')).toBeEnabled()
+  expect(save).not.toHaveBeenCalled()
 })

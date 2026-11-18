@@ -16,6 +16,7 @@
 .dashboard-hero-mascot > .mascot-canvas { position: absolute; left: -38px; top: -30px; }
 .dashboard-balance-stage .rb-flip-header { font-size: 14px; }
 .dashboard-balance-stage .rb-flip .ui-icon-button { color: inherit; }
+.dashboard-balance-stage .rb-flip--back .ui-icon-button { color: var(--accent-ink); }
 .welcome-balance { display: grid; gap: 8px; }
 .welcome-balance strong { font: 800 clamp(28px, 7vw, 38px)/1.2 var(--font-display); }
 .welcome-balance > span { font-size: 12px; }
@@ -64,13 +65,12 @@
 .dashboard-savings-back { display: grid; gap: 20px; color: var(--text-primary); }
 .dashboard-savings-total { display: grid; gap: 4px; }
 .dashboard-savings-total > span,.dashboard-savings-pocket > span { font-size: 12px; font-weight: 700; opacity: .88; }
+.dashboard-savings-total > span { opacity: 1; }
 .dashboard-savings-total > strong { font: 800 clamp(25px, 6vw, 34px)/1.2 var(--font-display); }
 .dashboard-savings-pockets { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
 .dashboard-savings-pocket { display: grid; align-content: start; gap: 6px; min-width: 0; min-height: 104px; padding: 14px; border: 0; border-radius: var(--r-card); background: var(--surface); box-shadow: var(--shadow-card); color: var(--text-primary); text-align: left; }
 .dashboard-savings-pocket small { font-size: 11px; color: var(--text-accessible); }
 .rb-flip--back .dashboard-savings-pockets { margin-top: 12px; }
-.rb-flip--back .dashboard-savings-pocket { --dark-panel-foreground: #FFF8EC; background: var(--accent-ink); color: var(--dark-panel-foreground); box-shadow: none; min-height: 80px; }
-.rb-flip--back .dashboard-savings-pocket small { color: var(--dark-panel-foreground); }
 .dashboard-savings-pocket strong { overflow-wrap: anywhere; font-size: 14px; }
 .dashboard-savings-section { display: grid; gap: 12px; padding: 18px; background: var(--surface); border-radius: var(--r-card); box-shadow: var(--shadow-card); }
 .dashboard-savings-section h2 { font: 800 15px/1.25 var(--font-display); }

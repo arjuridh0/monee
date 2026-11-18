@@ -35,6 +35,13 @@ afterEach(async () => {
 })
 
 describe('session store with real onboarding persistence', () => {
+  it('opens a new account directly when the user skips the optional device PIN', async () => {
+    await useMoneeStore.getState().load()
+    const { pin: _pin, ...input } = makeInput()
+    await useMoneeStore.getState().finishOnboarding(input)
+    expect(useMoneeStore.getState()).toMatchObject({ isLocked: false, profile: { pinHash: '', pinSalt: '' } })
+  })
+
   it('serializes initial loads without duplicating seed data or creating a profile', async () => {
     await Promise.all([
       useMoneeStore.getState().load(),
@@ -61,9 +68,11 @@ describe('session store with real onboarding persistence', () => {
     await Promise.all([useMoneeStore.getState().load(), useMoneeStore.getState().load()])
 
     expect(await db.count('monthSweeps')).toBe(1)
-    expect(useMoneeStore.getState().sweeps).toHaveLength(1)
-    expect(useMoneeStore.getState().snapshot?.savings.sisaBalance).toBe(450_000)
+    expect(useMoneeStore.getState().sweeps).toHaveLength(0)
+    expect(useMoneeStore.getState().snapshot).toBeNull()
     expect(useMoneeStore.getState().isLocked).toBe(true)
+    await useMoneeStore.getState().unlockProfile(useMoneeStore.getState().profile!)
+    expect(useMoneeStore.getState().snapshot?.savings.sisaBalance).toBe(450_000)
   })
 
   it('unlocks the new profile and reloads the committed custom allocation and normal income', async () => {
@@ -113,7 +122,8 @@ describe('session store with real onboarding persistence', () => {
     await completion
 
     expect(useMoneeStore.getState().profile?.id).toBe('profile')
-    expect(useMoneeStore.getState().transactions).toHaveLength(1)
+    expect(useMoneeStore.getState().transactions).toHaveLength(0)
+    expect(await (await openDatabase()).count('transactions')).toBe(1)
     expect(useMoneeStore.getState().isLocked).toBe(true)
   })
 
@@ -127,8 +137,10 @@ describe('session store with real onboarding persistence', () => {
     await useMoneeStore.getState().load()
 
     expect(useMoneeStore.getState().isLocked).toBe(true)
-    expect(useMoneeStore.getState().transactions).toHaveLength(1)
+    expect(useMoneeStore.getState().transactions).toHaveLength(0)
     expect(await (await openDatabase()).count('transactions')).toBe(1)
+    expect(useMoneeStore.getState().snapshot).toBeNull()
+    await useMoneeStore.getState().unlockProfile(useMoneeStore.getState().profile!)
     expect(useMoneeStore.getState().snapshot?.balance.totalIncome).toBe(1_000_000)
   })
 

@@ -7,8 +7,8 @@ import { IDBFactory } from 'fake-indexeddb'
 import { openDatabase, resetDbSingleton } from '@/core/db/migrations'
 import {
   profileRepo, bucketRepo, categoryRepo, transactionRepo,
-  goalRepo, sweepRepo, settingsRepo,
-  seedDefaultData, DEFAULT_BUCKETS, DEFAULT_CATEGORIES,
+  goalRepo, settingsRepo,
+  seedDefaultData, DEFAULT_BUCKETS,
 } from '@/core/db/repositories'
 import type { Profile, Transaction, Goal } from '@/core/finance/types'
 

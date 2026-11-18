@@ -1,6 +1,6 @@
-import { lazy, Suspense, useEffect, useRef, useState } from 'react'
+import { lazy, Suspense, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { Navigate, Route, Routes, useLocation, useNavigate, useOutlet } from 'react-router-dom'
-import { AnimatePresence, motion, useIsPresent, usePresenceData, useReducedMotion } from 'framer-motion'
+import { motion } from 'framer-motion'
 import type { ReactNode } from 'react'
 import { LiveAnalytics } from '@/components/layout/LiveAnalytics'
 import { AppLayout } from '@/components/layout/AppLayout'
@@ -21,7 +21,9 @@ import { SettingsScreen } from '@/features/settings/SettingsScreen'
 import { useMoneeStore } from '@/store'
 import { ROUTES } from './routes'
 import { PwaUpdateBanner } from '@/pwa/PwaControls'
+import { PwaInstallPrompt } from '@/pwa/PwaInstallPrompt'
 import { MascotCanvas } from '@/features/mascot/MascotCanvas'
+import { AccountGate } from '@/features/auth/AccountGate'
 import './shell.css'
 
 const DevPlayground = import.meta.env.DEV ? lazy(() => import('./DevPlayground')) : null
@@ -35,7 +37,13 @@ function RootLayout() {
   const outlet = useOutlet()
   const previous = useRef(location.pathname)
   const positions = useRef(new Map<string, number>())
-  const direction = ROOT_TABS.indexOf(location.pathname) >= ROOT_TABS.indexOf(previous.current) ? 1 : -1
+  const mounted = useRef(false)
+  useLayoutEffect(() => {
+    if (!('scrollRestoration' in window.history)) return
+    const restoration = window.history.scrollRestoration
+    window.history.scrollRestoration = 'manual'
+    return () => { window.history.scrollRestoration = restoration }
+  }, [])
   useEffect(() => {
     const open = () => { setVoiceFirst(false); setQuickAddOpen(true) }
     const voice = () => { setVoiceFirst(true); setQuickAddOpen(true) }
@@ -43,45 +51,43 @@ function RootLayout() {
     window.addEventListener('monee:voice', voice)
     return () => { window.removeEventListener('monee:quick-add', open); window.removeEventListener('monee:voice', voice) }
   }, [])
-  useEffect(() => {
+  useLayoutEffect(() => {
     const path = location.pathname
+    mounted.current = true
     const previousPath = previous.current
     previous.current = path
     const moved = path !== previousPath
-    if (moved) positions.current.set(previousPath, window.scrollY)
-    const settleTimer = window.setTimeout(() => {
-      if (moved) { window.scrollTo(0, positions.current.get(path) ?? 0); navigator.vibrate?.(8) }
-    }, moved ? 300 : 0)
+    if (moved) {
+      window.scrollTo({ left: 0, top: positions.current.get(path) ?? 0, behavior: 'instant' })
+      navigator.vibrate?.(8)
+    }
+    // Record while the route is active, before a shorter destination can clamp scrollY.
+    const savePosition = () => positions.current.set(path, window.scrollY)
+    savePosition()
+    window.addEventListener('scroll', savePosition, { passive: true })
     const feedbackTimer = window.setTimeout(() => {
       const state = path === '/' ? 'idle' : path === '/riwayat' ? 'thinking' : path === '/tabungan' ? 'happy' : 'greeting'
       window.dispatchEvent(new CustomEvent('monee:tab', { detail: state }))
     }, moved ? 80 : 0)
-    return () => { window.clearTimeout(settleTimer); window.clearTimeout(feedbackTimer) }
+    return () => { window.removeEventListener('scroll', savePosition); window.clearTimeout(feedbackTimer) }
   }, [location.pathname])
-  return <AppLayout navigation={<RootNav onAddTransaction={() => { setVoiceFirst(false); setQuickAddOpen(true) }} />} analytics={<LiveAnalytics />}>
-    <div className="tab-content-stage"><AnimatePresence initial={false} custom={direction}>
-      <TabPanel key={location.pathname} direction={direction}>{outlet}</TabPanel>
-    </AnimatePresence></div>
+  return <AppLayout navigation={<RootNav onAddTransaction={() => { setVoiceFirst(true); setQuickAddOpen(true) }} />} analytics={<LiveAnalytics />}>
+    <div className="tab-content-stage">
+      <TabPanel key={location.pathname} initial={mounted.current}>{outlet}</TabPanel>
+    </div>
     {quickAddOpen && <QuickAddDialog open initialVoice={voiceFirst} onClose={() => setQuickAddOpen(false)} />}
+    <PwaInstallPrompt />
   </AppLayout>
 }
 
-function TabPanel({ children, direction }: { children: ReactNode; direction: number }) {
-  const present = useIsPresent()
-  const exitDirection = usePresenceData() as number | undefined
-  // framer's hook captures the preference only at mount; read the live query too.
-  const motionHookReduce = useReducedMotion()
-  const mediaReduce = useMediaQuery(REDUCED_MOTION_QUERY)
-  const reduce = motionHookReduce || mediaReduce
-  // Keep inert on a native wrapper: the motion element can be cloned/updated during exit.
-  return <div className="tab-panel-guard" aria-hidden={!present || undefined} {...(!present ? { inert: '' } : {})}>
-    <motion.div className="tab-content" aria-hidden={!present || undefined}
-    {...(present ? {} : { style: { position: 'absolute' as const, inset: 0, pointerEvents: 'none' as const } })}
-    initial={{ x: reduce ? 0 : 24 * direction, opacity: 0 }} animate={{ x: 0, opacity: 1 }}
-    exit={{ x: reduce ? 0 : -24 * (exitDirection ?? direction), opacity: 0 }}
-    transition={reduce ? { duration: 0.12 } : { duration: present ? 0.26 : 0.22, delay: present ? 0.04 : 0, ease: [0.16, 1, 0.3, 1] }}>
+function TabPanel({ children, initial }: { children: ReactNode; initial: boolean }) {
+  const reduce = useMediaQuery(REDUCED_MOTION_QUERY)
+  // Mount only the current outlet; rapid taps must never retain interactive old screens.
+  return <motion.div className="tab-content"
+    initial={initial && !reduce ? { y: 4, opacity: 0 } : false} animate={{ y: 0, opacity: 1 }}
+    transition={reduce ? { duration: 0 } : { duration: 0.16, ease: [0.2, 0.8, 0.2, 1] }}>
     {children}
-  </motion.div></div>
+  </motion.div>
 }
 
 function SessionApp() {
@@ -101,14 +107,14 @@ function SessionApp() {
     void load().catch(() => { if (alive) setError(true) })
     return () => { alive = false }
   }, [loaded, load, retry])
-  useEffect(() => { if (profile) applyMascotTheme(profile.mascotId) }, [profile])
+  const savedMascotId = profile?.mascotId
+  useEffect(() => { if (savedMascotId) applyMascotTheme(savedMascotId) }, [savedMascotId])
   useEffect(() => {
     if (ROOT_TABS.includes(location.pathname)) destination.current = location.pathname
   }, [location.pathname])
 
   if (!loaded) return <AppLayout>{error ? <div className="session-loading">
     <MascotCanvas mascotId={profile?.mascotId ?? 'mochi'} state="sad" size={140} />
-    <span className="session-error-badge">Perlu dicoba lagi</span><code className="session-error-code">ERR_DATA_READ</code>
     <h1>Pengaturan belum bisa dibuka</h1><InlineError>Coba buka lagi. Data yang sudah tersimpan tetap ada di perangkatmu.</InlineError>
     <Button onClick={() => setRetry(value => value + 1)}>Coba lagi</Button>
   </div> : <Skeleton label="Membuka Monee" />}</AppLayout>
@@ -128,11 +134,16 @@ function SessionApp() {
   </Routes>
 }
 
-export function AppShell() {
+function AuthenticatedApp() {
   useAutoLock()
   useSessionRefresh()
   return <><PwaUpdateBanner /><Routes>
     {import.meta.env.DEV && DevPlayground && <Route path="/dev/ui" element={<Suspense fallback={<AppLayout><Skeleton label="Membuka ruang coba" /></AppLayout>}><DevPlayground /></Suspense>} />}
     <Route path="*" element={<SessionApp />} />
   </Routes></>
+}
+
+export function AppShell() {
+  const app = <AuthenticatedApp />
+  return import.meta.env.DEV ? app : <AccountGate>{app}</AccountGate>
 }

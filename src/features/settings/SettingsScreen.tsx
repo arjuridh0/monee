@@ -1,7 +1,7 @@
-import { lazy, Suspense, useCallback, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useId, useRef, useState } from 'react'
 import {
-  Banknote, Check, ChevronRight, Download, Info, Lock, Mic, Repeat,
-  ScanFace, Sparkles, Tags, TriangleAlert, Upload, User, ChartPie,
+  Banknote, Check, ChevronRight, Download, Info, Lock, LogOut, Mic, Repeat,
+  ScanFace, Sparkles, TriangleAlert, Upload, User, ChartPie,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { Button, TextField, Toggle } from '@/components/ui/controls'
@@ -17,8 +17,6 @@ import {
 } from '@/core/finance/currency'
 import type { Bucket, MascotId, Profile } from '@/core/finance/types'
 import { mascotIndex } from '@/features/mascot/mascot-options'
-import type { SaveAllocationInput } from '@/features/settings/allocation-persistence'
-import { CategoryManagerSheet } from '@/features/settings/CategoryManagerSheet'
 import { RecurringIncomeManagerSheet } from '@/features/settings/RecurringIncomeManagerSheet'
 import { BucketManagerSheet } from '@/features/settings/BucketManagerSheet'
 import { PeriodSettingsSheet } from '@/features/settings/PeriodSettingsSheet'
@@ -29,21 +27,27 @@ import { exportBackup, importBackup } from '@/features/settings/backup'
 import { applyMascotTheme, MASCOT_THEMES } from '@/theme/mascot-themes'
 import { useMoneeStore } from '@/store'
 import { useRupiah } from '@/hooks/useRupiah'
+import { logoutAccount } from '@/features/auth/account-client'
+import { useAccount } from '@/features/auth/AccountContext'
+import { AccountPinSheet } from '@/features/auth/AccountPinSheet'
+import { LegacyDataSheet } from '@/features/auth/LegacyDataSheet'
+import { changePin as persistDevicePin } from '@/features/security/change-pin'
+import { getSyncStatus, subscribeSyncStatus, type AccountSyncStatus } from '@/features/auth/sync'
 import './settings.css'
 
 const MascotCarousel = lazy(() => import('@/features/mascot/MascotCarousel').then(module => ({ default: module.MascotCarousel })))
 const VoiceServiceSheet = lazy(() => import('@/features/voice/VoiceServiceSheet').then(module => ({ default: module.VoiceServiceSheet })))
 
-type Sheet = 'name' | 'mascot' | 'currency' | 'allocation' | 'buckets' | 'period' | 'categories' | 'recurring' | 'pin' | 'about' | 'backup-export' | 'backup-import' | 'delete-all' | 'voice' | null
+type Sheet = 'name' | 'mascot' | 'currency' | 'allocation' | 'buckets' | 'period' | 'recurring' | 'pin' | 'account-pin' | 'legacy' | 'about' | 'backup-export' | 'backup-import' | 'delete-all' | 'voice' | null
 type Tone = 'accent' | 'violet' | 'gold' | 'peach' | 'green' | 'brown' | 'danger'
 
 export function SettingsScreen() {
+  const { pinAuth } = useAccount()
   const profile = useMoneeStore(state => state.profile)
   const buckets = useMoneeStore(state => state.buckets)
-  const categories = useMoneeStore(state => state.categories)
   const recurringIncomes = useMoneeStore(state => state.recurringIncomes)
   const saveProfile = useMoneeStore(state => state.saveProfile)
-  const saveAllocation = useMoneeStore(state => state.saveAllocation)
+  const saveBuckets = useMoneeStore(state => state.saveBuckets)
   const changePin = useMoneeStore(state => state.changePin)
   const deleteAllData = useMoneeStore(state => state.deleteAllData)
   const rupiah = useRupiah()
@@ -63,7 +67,7 @@ export function SettingsScreen() {
       onClick={() => setSheet('name')}>
       <span className="settings-avatar" aria-hidden="true"><User size={29} /></span>
       <span className="settings-profile-copy"><strong>{profile.name}</strong>
-        <small>Pengguna tunggal · data lokal</small></span>
+        <small>Akun Monee · sinkron lintas perangkat</small></span>
       <span className="settings-chevron" aria-hidden="true"><ChevronRight size={16} /></span>
     </button>
 
@@ -73,13 +77,11 @@ export function SettingsScreen() {
     </SettingsGroup>
 
     <SettingsGroup title="Uang & Bucket">
-      <SettingRow icon={ChartPie} tone="gold" label="Alokasi Bucket" value={`${buckets.length} bucket`}
+      <SettingRow icon={ChartPie} tone="gold" label="Alokasi Bucket" value={`${buckets.length} bucket · nama & jatah`}
         onClick={() => setSheet('allocation')} />
-      <SettingRow icon={ChartPie} tone="green" label="Kelola Bucket" value="Nama & tampilan" onClick={() => setSheet('buckets')} />
+      <SettingRow icon={ChartPie} tone="green" label="Kelola Bucket" value="Tambah, ikon & warna" onClick={() => setSheet('buckets')} />
       <SettingRow icon={Repeat} tone="gold" label="Awal Periode" value={`Tanggal ${profile.periodChanges?.slice(-1)[0]?.startDay ?? profile.periodStartDay}`}
         onClick={() => setSheet('period')} />
-      <SettingRow icon={Tags} tone="peach" label="Kelola Kategori" value={`${categories.length} kategori`}
-        onClick={() => setSheet('categories')} />
       <SettingRow icon={Repeat} tone="green" label="Pemasukan Rutin" value={`${recurringIncomes.length} template`}
         onClick={() => setSheet('recurring')} />
       <SettingRow icon={Banknote} tone="brown" label="Format Rupiah" value={formatRupiah(20_000, format)}
@@ -87,11 +89,15 @@ export function SettingsScreen() {
     </SettingsGroup>
 
     <SettingsGroup title="Keamanan">
-      <SettingRow icon={Lock} tone="accent" label="Ganti PIN" value="6 digit" onClick={() => setSheet('pin')} />
+      {pinAuth && <SettingRow icon={Lock} tone="accent" label="Ganti PIN akun" value="Berlaku di semua perangkat" onClick={() => setSheet('account-pin')} />}
+      <SettingRow icon={Lock} tone="accent" label={profile.pinHash ? (pinAuth ? 'Ganti kunci perangkat' : 'Ganti PIN') : 'Atur PIN perangkat'} value={profile.pinHash ? '6 digit' : 'Opsional · belum aktif'} onClick={() => setSheet('pin')} />
       <SettingRow icon={ScanFace} tone="violet" label="Buka dengan sidik jari" value="Belum aktif" disabled />
     </SettingsGroup>
 
+    <AccountSettings />
+
     <SettingsGroup title="Data & Backup">
+      <SettingRow icon={Download} tone="green" label="Data lama di browser ini" value="Impor opsional" onClick={() => setSheet('legacy')} />
       <SettingRow icon={Download} tone="green" label="Export Backup" value="JSON" onClick={() => setSheet('backup-export')} />
       <SettingRow icon={Upload} tone="brown" label="Import Backup" value="JSON" onClick={() => setSheet('backup-import')} />
       <SettingRow icon={Mic} tone="accent" label="Layanan suara" value="Dikelola Monee" onClick={() => setSheet('voice')} />
@@ -99,29 +105,30 @@ export function SettingsScreen() {
 
     <SettingsGroup title="Lainnya">
       <SettingRow icon={Info} tone="peach" label="Tentang Monee" value={`v${APP_VERSION}`} onClick={() => setSheet('about')} />
-      <SettingRow icon={TriangleAlert} tone="danger" label="Hapus Semua Data" value="Permanen" onClick={() => setSheet('delete-all')} />
+      <SettingRow icon={TriangleAlert} tone="danger" label="Hapus Semua Data" value="Akun & semua perangkat" onClick={() => setSheet('delete-all')} />
     </SettingsGroup>
 
     <PwaControls />
+    {sheet === 'account-pin' && <AccountPinSheet onClose={() => setSheet(null)} />}
+    {sheet === 'legacy' && <LegacyDataSheet onClose={() => setSheet(null)} />}
 
     <footer className="settings-footer">
-      <span>Monee v{APP_VERSION} · Semua data tersimpan di perangkat ini</span>
+      <span>Monee v{APP_VERSION} · Data akun tersinkron antarperangkat</span>
     </footer>
 
-    {sheet === 'voice' && <Suspense fallback={<Skeleton label="Menyiapkan pengaturan voice" />}><VoiceServiceSheet onClose={() => setSheet(null)} /></Suspense>}
+    {sheet === 'voice' && <Suspense fallback={<Dialog open sheet title="Layanan suara" onClose={() => setSheet(null)}><Skeleton label="Menyiapkan layanan suara" /></Dialog>}><VoiceServiceSheet onClose={() => setSheet(null)} /></Suspense>}
     {sheet === 'name' && <NameSheet profile={profile} saveProfile={saveProfile} onClose={() => setSheet(null)}
       onSaved={() => saved('Nama diperbarui.')} />}
     {sheet === 'mascot' && <MascotSheet profile={profile} saveProfile={saveProfile} onClose={() => setSheet(null)}
       onSaved={() => saved('Maskot & tema diperbarui.')} />}
     {sheet === 'currency' && <CurrencySheet profile={profile} saveProfile={saveProfile} rupiah={rupiah}
       onClose={() => setSheet(null)} onSaved={() => saved('Format rupiah diperbarui.')} />}
-    {sheet === 'allocation' && <AllocationSheet buckets={buckets} saveAllocation={saveAllocation}
+    {sheet === 'allocation' && <AllocationSheet buckets={buckets} saveBuckets={saveBuckets}
       onClose={() => setSheet(null)} onSaved={() => saved('Alokasi bucket diperbarui.')} />}
-    {sheet === 'categories' && <CategoryManagerSheet onClose={() => setSheet(null)} />}
     {sheet === 'buckets' && <BucketManagerSheet onClose={() => setSheet(null)} />}
     {sheet === 'period' && <PeriodSettingsSheet onClose={() => setSheet(null)} />}
     {sheet === 'recurring' && <RecurringIncomeManagerSheet onClose={() => setSheet(null)} />}
-    {sheet === 'pin' && <ChangePinSheet changePin={changePin} onClose={() => setSheet(null)}
+    {sheet === 'pin' && <ChangePinSheet hasPin={Boolean(profile.pinHash)} changePin={changePin} onClose={() => setSheet(null)}
       onSaved={() => saved('PIN berhasil diganti.')} />}
     {sheet === 'about' && <AboutSheet onClose={() => setSheet(null)} />}
     {(sheet === 'backup-export' || sheet === 'backup-import') && <BackupSheet
@@ -134,8 +141,43 @@ export function SettingsScreen() {
   </section>
 }
 
+function AccountSettings() {
+  const [status, setStatus] = useState<AccountSyncStatus>(getSyncStatus())
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  useEffect(() => subscribeSyncStatus(setStatus), [])
+
+  const description = status.state === 'offline' ? 'Offline · perubahan menunggu koneksi'
+    : status.conflicts ? `${status.conflicts} perubahan perlu ditinjau`
+      : status.pending ? `${status.pending} perubahan menunggu sinkronisasi`
+        : status.state === 'syncing' ? 'Sedang menyinkronkan…' : 'Tersinkron'
+
+  async function logout() {
+    if (busy) return
+    setBusy(true); setError('')
+    try {
+      await logoutAccount()
+      localStorage.removeItem('monee:active-account')
+      window.location.assign('/')
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Belum bisa keluar dari akun. Coba lagi.')
+    } finally { setBusy(false) }
+  }
+
+  return <SettingsGroup title="Akun">
+    <div className="settings-account">
+      <div className="settings-account__copy"><strong>Sinkronisasi akun</strong><span>{description}</span>
+        <small>Catatanmu tersinkron di semua perangkat. Perubahan saat offline dikirim setelah tersambung kembali.</small></div>
+      {error && <InlineError>{error}</InlineError>}
+      <Button variant="secondary" loading={busy} onClick={() => { void logout() }}>
+        <LogOut size={17} aria-hidden="true" /> Keluar dari akun
+      </Button>
+    </div>
+  </SettingsGroup>
+}
+
 function DeleteAllSheet({ expectedPinHash, deleteAllData, onClose }: {
-  expectedPinHash: string; deleteAllData: (pin: string, expectedPinHash: string) => Promise<void>; onClose: () => void
+  expectedPinHash: string; deleteAllData: (pin: string | undefined, expectedPinHash: string) => Promise<void>; onClose: () => void
 }) {
   const [pin, setPin] = useState('')
   const [confirmed, setConfirmed] = useState(false)
@@ -144,7 +186,7 @@ function DeleteAllSheet({ expectedPinHash, deleteAllData, onClose }: {
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    if (busy || pin.length !== 6 || !confirmed) return
+    if (busy || (expectedPinHash && pin.length !== 6) || !confirmed) return
     setBusy(true); setError('')
     try { await deleteAllData(pin, expectedPinHash) }
     catch (cause) {
@@ -158,15 +200,16 @@ function DeleteAllSheet({ expectedPinHash, deleteAllData, onClose }: {
     <form className="settings-form" onSubmit={event => { void submit(event) }}>
       <div className="settings-warning"><TriangleAlert size={20} aria-hidden="true" /><div>
         <strong>Tindakan ini tidak bisa dibatalkan</strong>
-        <p>Semua profil, PIN, transaksi, kategori, bucket, tujuan, dan pengaturan di perangkat ini akan dihapus permanen.</p>
+        <p>Semua transaksi, bucket, tujuan, dan pengaturan akun akan dihapus permanen dari semua perangkat. Akunmu tetap ada dan bisa membuat ledger baru.</p>
       </div></div>
-      <CodeSlots ariaLabel="PIN untuk konfirmasi hapus" value={pin} disabled={busy}
+      {expectedPinHash && <CodeSlots ariaLabel="PIN untuk konfirmasi hapus" value={pin} disabled={busy}
         onChange={value => { setPin(value); setError('') }} />
+      }
       <label className="settings-backup-confirm"><input type="checkbox" checked={confirmed} disabled={busy}
-        onChange={event => setConfirmed(event.target.checked)} /> Saya paham data di perangkat ini akan dihapus permanen.</label>
+        onChange={event => setConfirmed(event.target.checked)} /> Saya paham data akun di semua perangkat akan dihapus permanen.</label>
       {error && <InlineError>{error}</InlineError>}
       <div className="settings-dialog-actions">
-        <Button type="submit" variant="danger" loading={busy} disabled={pin.length !== 6 || !confirmed}>Hapus semua data</Button>
+        <Button type="submit" variant="danger" loading={busy} disabled={(Boolean(expectedPinHash) && pin.length !== 6) || !confirmed}>Hapus semua data</Button>
         <Button variant="ghost" disabled={busy} onClick={onClose}>Batal</Button>
       </div>
     </form>
@@ -177,8 +220,10 @@ function BackupSheet({ mode, onClose, onImported }: {
   mode: 'export' | 'import'; onClose: () => void; onImported: () => Promise<void>
 }) {
   const [passphrase, setPassphrase] = useState('')
-  const [encrypted, setEncrypted] = useState(false)
+  const [encrypted, setEncrypted] = useState(true)
   const [fileContents, setFileContents] = useState('')
+  const [reading, setReading] = useState(false)
+  const readVersion = useRef(0)
   const [confirmed, setConfirmed] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
@@ -206,7 +251,7 @@ function BackupSheet({ mode, onClose, onImported }: {
 
   async function restore(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    if (!fileContents || !confirmed || busy) return
+    if (!fileContents || !confirmed || busy || reading) return
     setBusy(true); setError('')
     try {
       await importBackup(await openDatabase(), fileContents, passphrase || undefined)
@@ -238,18 +283,24 @@ function BackupSheet({ mode, onClose, onImported }: {
       <TextField label="File backup JSON" type="file" accept="application/json,.json" disabled={busy}
         onChange={event => {
           const file = event.target.files?.[0]
+          const version = ++readVersion.current
           setFileContents(''); setError('')
+          setReading(false)
           if (!file) return
           if (file.size > 20 * 1024 * 1024) { setError('File backup melebihi batas 20 MB.'); return }
-          void file.text().then(setFileContents).catch(() => setError('File tidak bisa dibaca.'))
+          setReading(true)
+          void file.text().then(contents => { if (version === readVersion.current) setFileContents(contents) })
+            .catch(() => { if (version === readVersion.current) setError('File tidak bisa dibaca.') })
+            .finally(() => { if (version === readVersion.current) setReading(false) })
         }} />
+      {reading && <Skeleton label="Membaca file backup" />}
       <TextField label="Passphrase (jika backup dienkripsi)" type="password" value={passphrase}
         autoComplete="current-password" disabled={busy} onChange={event => setPassphrase(event.target.value)} />
       <label className="settings-backup-confirm"><input type="checkbox" checked={confirmed} disabled={busy}
         onChange={event => setConfirmed(event.target.checked)} /> Saya paham seluruh data saat ini akan diganti.</label>
       {error && <InlineError>{error}</InlineError>}
       <div className="settings-dialog-actions">
-        <Button type="submit" loading={busy} disabled={!fileContents || !confirmed}>Validasi & pulihkan</Button>
+        <Button type="submit" loading={busy} disabled={reading || !fileContents || !confirmed}>Validasi & pulihkan</Button>
         <Button variant="ghost" disabled={busy} onClick={onClose}>Batal</Button>
       </div>
     </form>}
@@ -327,7 +378,7 @@ function MascotSheet({ profile, saveProfile, onClose, onSaved }: {
     } finally { setApplying(false) }
   }
 
-  return <Dialog open sheet title="Maskot & Tema" onClose={() => { if (!applying) onClose() }}>
+  return <Dialog open presentation="immersive" title="Maskot & Tema" onClose={() => { if (!applying) onClose() }}>
     <Suspense fallback={<Skeleton label="Menyiapkan maskot" />}>
       <MascotCarousel initialIndex={mascotIndex(profile.mascotId)} applying={applying}
         onApply={apply} />
@@ -336,20 +387,18 @@ function MascotSheet({ profile, saveProfile, onClose, onSaved }: {
   </Dialog>
 }
 
-function AllocationSheet({ buckets, saveAllocation, onClose, onSaved }: {
+export function AllocationSheet({ buckets, saveBuckets, onClose, onSaved }: {
   buckets: Bucket[]
-  saveAllocation: (input: SaveAllocationInput) => Promise<void>
+  saveBuckets: (buckets: Bucket[], expected: Bucket[]) => Promise<void>
   onClose: () => void
   onSaved: () => void
 }) {
+  const formId = useId()
   const ordered = [...buckets].sort((a, b) => a.sortOrder - b.sortOrder)
   const presetBuckets = ordered.map((bucket, index) =>
     DEFAULT_BUCKETS.find(item => item.id === bucket.id) ?? DEFAULT_BUCKETS[index] ?? bucket)
-  const [expected] = useState(() => ordered.map(bucket => ({
-    id: bucket.id,
-    allocPercent: bucket.allocPercent,
-    allowOverbudget: bucket.allowOverbudget,
-  })))
+  const [expected] = useState(() => ordered.map(bucket => ({ ...bucket })))
+  const [names, setNames] = useState(() => ordered.map(bucket => bucket.name))
   const [custom, setCustom] = useState(() => ordered.some((bucket, index) =>
     bucket.allocPercent !== presetBuckets[index]!.allocPercent
     || bucket.allowOverbudget !== presetBuckets[index]!.allowOverbudget))
@@ -379,23 +428,24 @@ function AllocationSheet({ buckets, saveAllocation, onClose, onSaved }: {
     setBusy(true)
     setError('')
     try {
-      await saveAllocation({
-        expected,
-        changes: ordered.map((bucket, index) => ({
-          id: bucket.id,
+      await saveBuckets(ordered.map((bucket, index) => ({
+          ...bucket,
+          name: names[index]!.trim(),
           allocPercent: parsed[index]!,
           allowOverbudget: permissions[index]!,
-        })),
-      })
+        })), expected)
       onSaved()
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Alokasi belum tersimpan. Coba lagi, ya.')
     } finally { setBusy(false) }
   }
 
-  return <Dialog open sheet title="Alokasi Bucket" onClose={() => { if (!busy) onClose() }}>
-    <form className="settings-form" onSubmit={event => { void submit(event) }}>
-      <p className="settings-helper">Total harus 100%. Jatah membatasi pengeluaran; saldo periode tetap dicek.</p>
+  return <Dialog open sheet title="Alokasi Bucket" onClose={() => { if (!busy) onClose() }} footer={<div className="settings-dialog-actions">
+    <Button type="submit" form={formId} loading={busy} disabled={!valid}>Simpan alokasi</Button>
+    <Button variant="ghost" disabled={busy} onClick={onClose}>Batal</Button>
+  </div>}>
+    <form id={formId} className="settings-form" onSubmit={event => { void submit(event) }}>
+      <p className="settings-helper">Ubah nama bucket langsung di sini. Pilih Custom sendiri untuk mengubah jatah; total harus 100%.</p>
       <div className="settings-allocation-presets" role="group" aria-label="Pilihan alokasi">
         <Button variant={custom ? 'secondary' : 'primary'} aria-pressed={!custom} disabled={busy}
           onClick={choosePreset}>Pakai preset</Button>
@@ -410,7 +460,8 @@ function AllocationSheet({ buckets, saveAllocation, onClose, onSaved }: {
               <span className="settings-allocation-icon" style={{ background: bucket.color }}>
                 <CategoryIcon name={bucket.icon} />
               </span>
-              <span className="settings-allocation-name">{bucket.name}</span>
+              <TextField className="settings-bucket-name" label={`Nama bucket ${index + 1}`} value={names[index]} required maxLength={32} disabled={busy}
+                onChange={event => { setNames(current => current.map((value, i) => i === index ? event.target.value : value)); setError('') }} />
               {custom ? <span className="settings-allocation-percent">
                 <input className="settings-allocation-input" aria-label={`Persentase ${bucket.name}`}
                   aria-invalid={invalidPercent} type="number" inputMode="decimal" min="0" max="100" step="any"
@@ -438,10 +489,6 @@ function AllocationSheet({ buckets, saveAllocation, onClose, onSaved }: {
       </div>
       {shownError && <InlineError>{shownError}</InlineError>}
       <p className="ui-helper">Tabungan boleh lewat jatah secara default. Uang keluar tetap dibatasi saldo periode.</p>
-      <div className="settings-dialog-actions">
-        <Button type="submit" loading={busy} disabled={!valid}>Simpan alokasi</Button>
-        <Button variant="ghost" disabled={busy} onClick={onClose}>Batal</Button>
-      </div>
     </form>
   </Dialog>
 }
@@ -487,7 +534,8 @@ function CurrencySheet({ profile, saveProfile, rupiah, onClose, onSaved }: {
   </Dialog>
 }
 
-function ChangePinSheet({ changePin, onClose, onSaved }: {
+function ChangePinSheet({ hasPin, changePin, onClose, onSaved }: {
+  hasPin: boolean
   changePin: (currentPin: string, newPin: string) => Promise<void>; onClose: () => void; onSaved: () => void
 }) {
   const [currentPin, setCurrentPin] = useState('')
@@ -500,11 +548,11 @@ function ChangePinSheet({ changePin, onClose, onSaved }: {
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (busy) return
-    if (currentPin.length !== 6 || newPin.length !== 6 || confirmation.length !== 6) {
-      setError('Isi ketiga PIN 6 digit dulu, ya.'); return
+    if ((hasPin && currentPin.length !== 6) || newPin.length !== 6 || confirmation.length !== 6) {
+      setError('Isi kolom PIN yang tersedia dulu, ya.'); return
     }
     if (mismatch) { setError('PIN belum sama. Periksa ulang, ya.'); return }
-    if (newPin === currentPin) { setError('PIN baru harus berbeda dari PIN sekarang.'); return }
+    if (hasPin && newPin === currentPin) { setError('PIN baru harus berbeda dari PIN sekarang.'); return }
     setBusy(true); setError('')
     try {
       await changePin(currentPin, newPin)
@@ -514,10 +562,10 @@ function ChangePinSheet({ changePin, onClose, onSaved }: {
     } finally { setBusy(false) }
   }
 
-  return <Dialog open sheet title="Ganti PIN" onClose={() => { if (!busy) onClose() }}>
+  return <Dialog open sheet title={hasPin ? 'Ganti PIN' : 'Atur PIN perangkat'} onClose={() => { if (!busy) onClose() }}>
     <form className="settings-form" onSubmit={event => { void submit(event) }}>
-      <CodeSlots ariaLabel="PIN sekarang" value={currentPin} disabled={busy}
-        onChange={value => { setCurrentPin(value); setError('') }} />
+      {hasPin && <CodeSlots ariaLabel="PIN sekarang" value={currentPin} disabled={busy}
+        onChange={value => { setCurrentPin(value); setError('') }} />}
       <CodeSlots ariaLabel="PIN baru" value={newPin} disabled={busy}
         onChange={value => { setNewPin(value); setError('') }} />
       <CodeSlots ariaLabel="Ulangi PIN baru" value={confirmation} disabled={busy}
@@ -525,10 +573,19 @@ function ChangePinSheet({ changePin, onClose, onSaved }: {
       {error && <InlineError>{error}</InlineError>}
       <div className="settings-warning"><Lock size={20} aria-hidden="true" /><div>
         <strong>PIN tidak bisa dipulihkan</strong>
-        <p>Catat dan ingat PIN barumu. Tanpa PIN, data di perangkat ini tidak bisa dibuka.</p>
+        <p>PIN hanya mengunci perangkat ini. PIN tidak diperlukan untuk membuka akun di perangkat baru.</p>
       </div></div>
       <div className="settings-dialog-actions">
-        <Button type="submit" loading={busy}>Simpan PIN</Button>
+        <Button type="submit" loading={busy}>{hasPin ? 'Simpan PIN baru' : 'Aktifkan PIN'}</Button>
+        {hasPin && <Button variant="secondary" disabled={busy || currentPin.length !== 6} onClick={() => {
+          setBusy(true); setError('')
+          void (async () => {
+            const db = await openDatabase(), profile = await db.get('profile', 'profile')
+            if (!profile) throw new Error('Profil belum tersedia.')
+            await persistDevicePin(db, { currentPin, newPin: '', remove: true, expectedPinHash: profile.pinHash })
+            await useMoneeStore.getState().load(); notifyDataChanged(); onSaved()
+          })().catch((cause: unknown) => setError(cause instanceof Error ? cause.message : 'Kunci belum dinonaktifkan.')).finally(() => setBusy(false))
+        }}>Nonaktifkan kunci perangkat</Button>}
         <Button variant="ghost" disabled={busy} onClick={onClose}>Batal</Button>
       </div>
     </form>
@@ -540,7 +597,7 @@ function AboutSheet({ onClose }: { onClose: () => void }) {
     <div className="settings-about">
       <strong>Monee v{APP_VERSION}</strong>
       <p>Pencatat keuangan pribadi dengan maskot yang menemani kebiasaanmu.</p>
-      <p>Semua data tersimpan di perangkat ini.</p>
+      <p>Ledger akun tersinkron antarperangkat. PIN, jika dipakai, hanya mengunci perangkat ini.</p>
     </div>
   </Dialog>
 }

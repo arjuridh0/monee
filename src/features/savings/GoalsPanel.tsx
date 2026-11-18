@@ -12,6 +12,7 @@ import { useRupiah } from '@/hooks/useRupiah'
 import { useMoneeStore } from '@/store'
 import { GoalDialog } from './GoalDialog'
 import { UseGoalDialog } from './UseGoalDialog'
+import { savingsErrorMessage } from './errors'
 
 const EMPTY_GOALS: GoalProgress[] = []
 
@@ -60,7 +61,7 @@ export function GoalsPanel() {
   async function persist(ids: string[]) {
     setBusy(true); setError('')
     try { await useMoneeStore.getState().reorderGoals(ids); setAnnouncement('Prioritas tujuan diperbarui.') }
-    catch (cause) { setError(cause instanceof Error ? cause.message : 'Urutan belum tersimpan.') }
+    catch (cause) { setError(savingsErrorMessage(cause, 'Urutan belum tersimpan. Coba lagi.')) }
     finally { setBusy(false); setDragOrder(null); pendingOrder.current = null }
   }
   function move(id: string, delta: number) {
@@ -99,7 +100,7 @@ export function GoalsPanel() {
       {error && <InlineError>{error}</InlineError>}
       <div className="savings-actions"><FuseButton label="Ya, hapus tujuan" doneLabel="Tujuan dihapus" commitOn="fuseEnd" undoWindow={4000}
         onCommit={remove} onUndo={() => {}} onPhaseChange={setDeletePhase} onSettled={() => setDeleting(null)}
-        getErrorMessage={cause => cause instanceof Error ? cause.message : 'Tujuan belum terhapus. Coba lagi.'} />
+        getErrorMessage={cause => savingsErrorMessage(cause, 'Tujuan belum terhapus. Coba lagi.')} />
         {deletePhase === 'idle' && <Button variant="ghost" disabled={busy} onClick={() => setDeleting(null)}>Batal</Button>}</div>
     </Dialog>}
   </section>

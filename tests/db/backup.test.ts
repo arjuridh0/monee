@@ -51,6 +51,17 @@ beforeEach(async () => {
 afterEach(() => { vi.unstubAllGlobals(); resetDbSingleton() })
 
 describe('backup import/export', () => {
+  it('round trips an account ledger without an optional device PIN', async () => {
+    const db = await openDatabase(), profile = (await db.get('profile', 'profile'))!
+    await db.put('profile', { ...profile, pinHash: '', pinSalt: '' })
+    const backup = await exportBackup(db)
+    await importBackup(db, backup)
+    expect(await db.get('profile', 'profile')).toMatchObject({ pinHash: '', pinSalt: '' })
+  })
+  it.each(['', '        ', 'short'])('does not silently downgrade an explicit invalid encryption passphrase (%j)', async passphrase => {
+    const db = await openDatabase()
+    await expect(exportBackup(db, passphrase)).rejects.toMatchObject({ code: 'ERR_BACKUP_INVALID' })
+  })
   it('omits voice credentials from exported backups and ignores injected credentials on import', async () => {
     const db = await openDatabase()
     await db.put(STORES.settings, { key: 'groq-voice-credential', value: { apiKey: 'gsk_secret_local', consent: true } })

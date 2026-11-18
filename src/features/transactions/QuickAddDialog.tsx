@@ -1,5 +1,5 @@
 import { getConfiguredPeriod } from '@/core/finance/period-config'
-import { lazy, Suspense, useRef, useState } from 'react'
+import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import { Mic, ScanLine } from 'lucide-react'
 import { Button, TextField } from '@/components/ui/controls'
 import { Dialog } from '@/components/ui/Dialog'
@@ -14,6 +14,7 @@ import { FuseButton } from '@/components/reactbits/FuseButton'
 import { CategoryIcon } from '@/components/ui/CategoryIcon'
 import { calcBucketBudgets, calcBucketProgress } from '@/core/finance/allocation'
 import { calcBalance } from '@/core/finance/balance'
+import { defaultCategoryId } from '@/core/finance/transaction-presentation'
 import './quick-add.css'
 
 interface QuickAddDialogProps {
@@ -26,16 +27,20 @@ const VoiceDialog = lazy(() => import('@/features/voice/VoiceDialog').then(modul
 const ReceiptDialog = lazy(() => import('@/features/ocr/ReceiptDialog').then(module => ({ default: module.ReceiptDialog })))
 
 type TransactionKind = 'expense' | 'income'
-const categoryOrder = ['cat-makan', 'cat-minum', 'cat-transport', 'cat-pulsa', 'cat-belanja', 'cat-hiburan', 'cat-sedekah', 'cat-tabungan', 'cat-edukasi', 'cat-lain-exp', 'cat-gaji', 'cat-bonus', 'cat-freelance', 'cat-hadiah']
 
 export function QuickAddDialog({ open, onClose, initialVoice = false }: QuickAddDialogProps) {
+  const returnFocus = useRef(document.activeElement instanceof HTMLElement ? document.activeElement : null)
+  useEffect(() => {
+    const trigger = returnFocus.current
+    return () => { if (trigger?.isConnected) trigger.focus({ preventScroll: true }) }
+  }, [])
   const [voiceOpen, setVoiceOpen] = useState(initialVoice)
   const [receiptOpen, setReceiptOpen] = useState(false)
+  const receiptReturnsToVoice = useRef(false)
   const categories = useMoneeStore(state => state.categories)
   const buckets = useMoneeStore(state => state.buckets)
   const [kind, setKind] = useState<TransactionKind>('expense')
   const [amount, setAmount] = useState('')
-  const [categoryId, setCategoryId] = useState('')
   const [bucketId, setBucketId] = useState('')
   const [date, setDate] = useState(getToday())
   const [note, setNote] = useState('')
@@ -49,22 +54,17 @@ export function QuickAddDialog({ open, onClose, initialVoice = false }: QuickAdd
   const period = getConfiguredPeriod(date, profile?.periodStartDay ?? 1, profile?.periodChanges)
   const periodTxs = transactions.filter(item => isInPeriod(item.date, period))
   const progress = calcBucketProgress(buckets, calcBucketBudgets(buckets, calcBalance(periodTxs).totalIncome), periodTxs)
-  const orderedCategories = [...categories].sort((a, b) => (categoryOrder.indexOf(a.id) < 0 ? Infinity : categoryOrder.indexOf(a.id)) - (categoryOrder.indexOf(b.id) < 0 ? Infinity : categoryOrder.indexOf(b.id)))
-  const expenseCategories = orderedCategories.filter(category => category.type === 'expense')
-  const incomeCategories = orderedCategories.filter(category => category.type === 'income')
-  const availableCategories = kind === 'expense' ? expenseCategories : incomeCategories
-  const availableBuckets = buckets.filter(bucket => !bucket.isSavings).sort((a, b) => a.sortOrder - b.sortOrder)
-  const selectedCategoryId = categoryId || availableCategories[0]?.id || ''
+  const availableBuckets = [...buckets].sort((a, b) => a.sortOrder - b.sortOrder)
   const selectableBuckets = availableBuckets.filter(bucket => bucket.allowOverbudget || (progress.find(item => item.bucket.id === bucket.id)?.remaining ?? 0) > 0)
   const selectedBucketId = selectableBuckets.find(bucket => bucket.id === bucketId)?.id
     ?? selectableBuckets.find(bucket => bucket.id === profile?.defaultBucketId)?.id
-    ?? selectableBuckets[0]?.id ?? ''
-  const savingsDeposit = kind === 'expense' && selectedCategoryId === 'cat-tabungan'
+    ?? selectableBuckets.find(bucket => !bucket.isSavings)?.id ?? ''
+  const savingsDeposit = kind === 'expense' && availableBuckets.find(bucket => bucket.id === selectedBucketId)?.isSavings === true
+  const selectedCategoryId = defaultCategoryId(categories, savingsDeposit ? 'savings_deposit' : kind)
 
   function switchKind(value: string) {
     const next: TransactionKind = value === 'Pemasukan' ? 'income' : 'expense'
     setKind(next)
-    setCategoryId((next === 'income' ? incomeCategories : expenseCategories)[0]?.id ?? '')
     setError('')
   }
 
@@ -74,7 +74,7 @@ export function QuickAddDialog({ open, onClose, initialVoice = false }: QuickAdd
       const state = useMoneeStore.getState()
       const today = getToday()
       const amountValue = Number(amount)
-      const category = availableCategories.find(item => item.id === selectedCategoryId)
+      const category = categories.find(item => item.id === selectedCategoryId)
       const bucket = savingsDeposit
         ? state.buckets.find(item => item.isSavings)
         : availableBuckets.find(item => item.id === selectedBucketId)
@@ -83,7 +83,7 @@ export function QuickAddDialog({ open, onClose, initialVoice = false }: QuickAdd
         return false
       }
       if (!category) {
-        setError('ERR_CATEGORY_INVALID — Pilih kategori yang tersedia.')
+        setError('Pengaturan transaksi belum siap. Tutup formulir lalu coba lagi.')
         return false
       }
       if (!date || date > today) {
@@ -137,12 +137,17 @@ export function QuickAddDialog({ open, onClose, initialVoice = false }: QuickAdd
         onUndo={async () => { if (!saved.current) return; setBusy(true); try { await useMoneeStore.getState().updateTransaction({ ...saved.current, deleted: true, updatedAt: Date.now() }, saved.current); saved.current = null } finally { setBusy(false) } }} />
   </div>
 
-  if (receiptOpen && open) return <Suspense fallback={<Dialog open sheet title="Scan struk" onClose={() => setReceiptOpen(false)}><Skeleton label="Menyiapkan scan struk" /></Dialog>}>
-    <ReceiptDialog onClose={() => setReceiptOpen(false)} />
+  function closeReceipt() {
+    setReceiptOpen(false)
+    if (receiptReturnsToVoice.current) setVoiceOpen(true)
+  }
+
+  if (receiptOpen && open) return <Suspense fallback={<Dialog open sheet title="Scan struk" onClose={closeReceipt}><Skeleton label="Menyiapkan scan struk" /></Dialog>}>
+    <ReceiptDialog onClose={closeReceipt} />
   </Suspense>
 
-  if (voiceOpen && open) return <Suspense fallback={<Dialog open sheet title="Catat dengan suara" onClose={() => setVoiceOpen(false)}><Skeleton label="Menyiapkan voice" /></Dialog>}>
-    <VoiceDialog onClose={() => setVoiceOpen(false)} />
+  if (voiceOpen && open) return <Suspense fallback={<Dialog open sheet title="Catat dengan suara" onClose={onClose}><Skeleton label="Menyiapkan voice" /></Dialog>}>
+    <VoiceDialog onClose={onClose} onManual={() => setVoiceOpen(false)} onReceipt={() => { receiptReturnsToVoice.current = true; setVoiceOpen(false); setReceiptOpen(true) }} />
   </Suspense>
 
   return <Dialog open={open} title="Tambah transaksi" onClose={() => { if (!busy && phase !== 'armed') onClose() }} sheet footer={footer}>
@@ -151,16 +156,17 @@ export function QuickAddDialog({ open, onClose, initialVoice = false }: QuickAdd
         value={kind === 'expense' ? 'Pengeluaran' : 'Pemasukan'} onChange={switchKind} disabled={busy} />
       <TextField label="Nominal (Rp)" type="number" inputMode="numeric" min="1" step="1" required
         value={amount} onChange={event => { setAmount(event.target.value); setError('') }} autoFocus />
-      <Button variant="secondary" onClick={() => setVoiceOpen(true)}><Mic size={18} aria-hidden="true" />Catat dengan suara</Button>
-      <Button variant="secondary" onClick={() => setReceiptOpen(true)}><ScanLine size={18} aria-hidden="true" />Scan struk</Button>
-      {error && <InlineError>{error}</InlineError>}
       <div className="quick-amounts" aria-label="Nominal cepat">{[5000,10000,20000,50000,100000].map(value => <button type="button" key={value} onClick={() => { setAmount(String(value)); setError('') }}>{value / 1000}rb</button>)}</div>
-      <div className="quick-add-category-grid" role="group" aria-label="Kategori">{availableCategories.map(category => <button type="button" key={category.id} aria-pressed={selectedCategoryId === category.id} onClick={() => { setCategoryId(category.id); setError('') }}><span style={{ background: category.color }}><CategoryIcon name={category.icon} size={20} /></span>{category.name}</button>)}</div>
+      <div className="quick-add-tools">
+        <Button variant="secondary" onClick={() => setVoiceOpen(true)}><Mic size={18} aria-hidden="true" />Catat dengan suara</Button>
+        <Button variant="secondary" onClick={() => { receiptReturnsToVoice.current = false; setReceiptOpen(true) }}><ScanLine size={18} aria-hidden="true" />Scan struk</Button>
+      </div>
+      {error && <InlineError>{error}</InlineError>}
       {savingsDeposit && <p className="quick-add-savings-note">Setoran ini masuk ke Tabungan dan memakai saldo periode.</p>}
-      {kind === 'expense' && !savingsDeposit && <div className="quick-add-buckets" role="group" aria-label="Bucket">{availableBuckets.map(bucket => {
+      {kind === 'expense' && <div className="quick-add-buckets" role="group" aria-label="Bucket">{availableBuckets.map(bucket => {
         const item = progress.find(item => item.bucket.id === bucket.id)
         const full = !bucket.allowOverbudget && (item?.remaining ?? 0) <= 0
-        return <button type="button" key={bucket.id} disabled={full} aria-pressed={selectedBucketId === bucket.id} onClick={() => { setBucketId(bucket.id); setError('') }}>{bucket.name}{full ? ' - penuh' : ''}<progress max="100" value={item?.progressPct ?? 0} /></button>
+        return <button type="button" key={bucket.id} disabled={full} aria-label={`${bucket.name}${full ? ' - penuh' : ''}`} aria-pressed={selectedBucketId === bucket.id} onClick={() => { setBucketId(bucket.id); setError('') }}><span className="quick-bucket-title"><CategoryIcon name={bucket.icon} size={18} />{bucket.name}{full ? ' - penuh' : ''}</span><progress aria-hidden="true" max="100" value={item?.progressPct ?? 0} /></button>
       })}</div>}
       <TextField label="Tanggal" type="date" value={date} max={getToday()} required
         onChange={event => { setDate(event.target.value); setError('') }} disabled={busy} />

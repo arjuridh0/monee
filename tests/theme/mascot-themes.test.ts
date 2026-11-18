@@ -9,7 +9,7 @@ afterEach(() => {
 describe('mascot themes v2', () => {
   it('matches approved accent colors', () => {
     expect(Object.values(MASCOT_THEMES).map(t => t.accent)).toEqual([
-      '#4F7C3A', '#3F6FB5', '#C0862B',
+      '#4F7C3A', '#3F6FB5', '#9C641D',
     ])
   })
 
@@ -24,7 +24,7 @@ describe('mascot themes v2', () => {
 
   it('replaces all theme tokens when switching back', () => {
     applyMascotTheme('bumi')
-    expect(document.documentElement.style.getPropertyValue('--text-on-accent')).toBe('#2E2A24')
+    expect(document.documentElement.style.getPropertyValue('--text-on-accent')).toBe('#FFFFFF')
     applyMascotTheme('mochi')
     expect(document.documentElement.style.getPropertyValue('--text-on-accent')).toBe('#FFFFFF')
     expect(document.documentElement.style.getPropertyValue('--nav-bg')).toBe('#3F3227')

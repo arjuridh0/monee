@@ -54,7 +54,7 @@ export function CodeSlots({ length = 6, value, defaultValue = '', onChange, onCo
         {focused && status !== 'success' && code.length < length && i === code.length && <span className="rb-code-caret" />}
         {status === 'success' ? <Check size={18} /> : code[i] ? <motion.span key={`${i}-${code[i]}`}
           initial={reduce ? false : { y: 8, scale: 0.8, opacity: 0 }} animate={{ y: 0, scale: 1, opacity: 1 }}
-          transition={reduce ? { duration: 0 } : { type: 'spring', bounce: 0.2, duration: 0.3, delay: i * 0.02 }}>
+          transition={reduce ? { duration: 0 } : { type: 'spring', stiffness: 420, damping: 30, mass: 0.55, delay: i * 0.018 }}>
           {mask ? '•' : code[i]}
         </motion.span> : null}
       </span>)}

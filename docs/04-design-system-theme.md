@@ -3,13 +3,13 @@
 > Teks tombol navigasi pada `nav-accent` memakai `--nav-button-ink: #241D18`; pemasukan Riwayat memakai semantic `--income`. Target kontras dan batas pemeriksaan mengikuti dok 10 dan [task](task.md).
 
 > **Status:** v2 · disinkronkan dengan `design/monee.pen` (G-0 Design System).
-> **Perubahan dari v1:** palet direvisi dari *warm cream + emerald* menjadi **Warm Clay** (pasir hangat + aksen sage olive + nav bar cokelat gelap) agar konsisten dengan reference visual dan karakter 3D maskot. Struktur, tipografi, dan komponen inti tetap sama.
+> **Perubahan dari v1:** palet direvisi dari *warm cream + emerald* menjadi **Warm Clay** (pasir hangat + aksen sage olive + nav bar cokelat gelap) agar konsisten dengan reference visual dan karakter maskot 2.5D. Struktur, tipografi, dan komponen inti tetap sama.
 
 ---
 
 ## 1. Arah Visual
 
-**Warm Clay · Fun + Cute + 3D + Clean + Modern + Customizable**
+**Warm Clay · Fun + Cute + 2.5D + Clean + Modern + Customizable**
 
 Prinsip visual yang dipakai (dari analisis arah visual Warm Clay yang disepakati):
 
@@ -97,7 +97,7 @@ Hanya `accent` + `accent-soft` + `bg-tone` yang berubah. Struktur, tipografi, da
 --theme-bg-tone:     #EDF3FA;
 
 /* Bumi — "Sunny Amber" */
---theme-accent:      #C0862B;
+--theme-accent:      #9C641D;
 --theme-accent-vivid:#E0A84A;
 --theme-accent-soft: #F8E9CE;
 --theme-bg-tone:     #FAF3E6;
@@ -343,26 +343,20 @@ Maskot bereaksi per tab: Home `idle` · Riwayat `thinking` · Tabungan `happy` �
 > Saat implementasi: **jangan pakai PNG**. App harus instantiate `MascotCanvas` dan menggambar
 > secara live. PNG hanya untuk mockup desain.
 
-### Jalur B — 3D GLB (KHUSUS halaman pilih maskot & tema)
+### Carousel saat ini ? Canvas 2.5D
 
-| Aspek | Nilai |
-|---|---|
-| Teknologi | Three.js + `GLTFLoader` + `DRACOLoader` (WAJIB, model Draco-compressed) |
-| Dipakai di | **Hanya** halaman "Pilih Maskot" (G-3d) — kartu carousel |
-| Perilaku | Snapshot WebP frontal dari GLB, satu renderer untuk antrean snapshot; lazy hanya maskot aktif. Model/resource dilepas setelah render, renderer/decoder dilepas setelah selector terakhir unmount. Renderer tetap snapshot + fallback 2.5D. |
-| Model | `public/mascots/3d/mochi.glb` (0.50 MB) · `furry.glb` (6.27 MB) · `yobao.glb` (1.33 MB) |
-| Aset desain | `mascots/png/{mochi,luna,bumi}.png` (mockup 3D di carousel) |
+Pemilih maskot menggunakan `MascotCanvas`, engine yang sama dengan layar aplikasi lain. GLB, Three.js dan decoder Draco tidak digunakan. PNG di `mascots/png/` hanya referensi desain historis; tidak dikirim ke browser aplikasi.
 
 ### Reaksi kontekstual
 
 `src/features/mascot/mascot-machine.ts` memetakan 19 event ke 14 state dengan prioritas dan durasi finite. Reaksi sementara ditumpuk di atas base state layar melalui `MascotCanvas`, lalu kembali otomatis tanpa frame loop tambahan. `mascot-events.ts` menyiarkan event lewat `monee:mascot`; store mengumumkan transaksi tersimpan, ambang bucket, error jatah/saldo/periode, dan tujuan yang baru terpenuhi. Voice menggunakan state listening/processing; batas pengujian layanan asli ada di [task](task.md).
 
 ### Aturan
-1. **Di luar halaman pilih maskot, tidak boleh ada render 3D.** Budget WebGL hanya dipakai di layar itu.
+1. **Seluruh aplikasi menggunakan Canvas 2.5D**, tanpa model 3D atau WebGL.
 2. state engine 2.5D punya karakter berbeda per maskot (Mochi tenang, Luna aktif, Bumi jahil) — jangan diseragamkan.
 3. 14 state wajib tersedia di semua maskot; fallback aman bila state tak dikenal.
 4. Maskot tidak menutupi teks, nominal, field, atau kontrol. Reserve ruang di layout; jangan mengandalkan overflow untuk menampilkan kepala. Dashboard memakai inset kanan12px dan hanya overlap badan28px.
-5. Pusatkan karakter secara optik berdasarkan area artwork yang terlihat, bukan hanya dimensi berkas. Pada carousel, margin transparan PNG mockup dipangkas melalui transform image fill. Implementasi GLB memakai bounding box model; karakter aktif lebih besar daripada side cards secara sengaja.
+5. Pusatkan karakter secara optik berdasarkan area artwork yang terlihat, bukan hanya dimensi berkas. Pada carousel, margin transparan PNG mockup dipangkas melalui transform image fill. Implementasi Canvas memusatkan artwork; karakter aktif lebih besar daripada pilihan samping secara sengaja.
 6. Nama, lock, dan empty/error memakai stage terpusat dengan safe area. Voice memisahkan gambar, tombol mic dan label sebagai area berbeda. Posisi mockup dan screenshot revisi24 Oktober dicatat di dok12, D-12.
 
 ---
@@ -401,7 +395,7 @@ Maskot bereaksi per tab: Home `idle` · Riwayat `thinking` · Tabungan `happy` �
   - `G-R: Responsive Desktop & Tablet` — referensi layout ≥ 768px
 - Aset 2.5D (mockup): `mascots/png2_5d/*.png` — hasil render engine, **bukan** aset produksi.
   Regenerasi: `node tools/render-2_5d.cjs` (butuh `playwright`, `PLAYWRIGHT_BROWSERS_PATH`).
-- Aset 3D (carousel): `mascots/png/{mochi,luna,bumi}.png` (mockup), produksi `public/mascots/3d/*.glb`.
-- Token runtime CSS: `src/theme/tokens.css` sudah Warm Clay v2; tema maskot runtime berasal dari `src/theme/mascot-themes.ts` (`MASCOT_THEMES`). Palet `THEMES` pada `mascots/index.js` adalah warisan studio v1, bukan sumber token aplikasi.
+- PNG historis carousel: `mascots/png/{mochi,luna,bumi}.png`, hanya referensi desain.
+- Token runtime CSS: `src/theme/tokens.css` sudah Warm Clay v2; tema maskot runtime berasal dari `src/theme/mascot-themes.ts` (`MASCOT_THEMES`). Palet studio historis yang tidak digunakan telah dihapus.
 - Adaptasi ReactBits sudah tersedia di `src/components/reactbits/` memakai `framer-motion` dan Lucide. Lisensi dan batas adaptasi tercatat pada `src/components/reactbits/LICENSE.md`; tidak perlu memasang paket `@react-bits/*` yang disebut dalam rencana lama.
 - Target interaksi 44px, pasangan warna AA, frame Canvas statis ketika reduced-motion, dan pause saat dokumen tersembunyi. Matriks runtime: 320/375/768/1024/1440px; status pemeriksaan pada task.

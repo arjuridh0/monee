@@ -45,6 +45,12 @@
 }
 
 .settings-group { display: grid; gap: 9px; }
+.settings-account { display: grid; gap: 12px; padding: 16px; }
+.settings-account__copy { display: grid; gap: 4px; }
+.settings-account__copy strong { color: var(--text-primary); font-size: 14px; }
+.settings-account__copy span { color: var(--theme-accent-ink); font-size: 13px; font-weight: 700; }
+.settings-account__copy small { max-width: 54ch; color: var(--text-secondary); font-size: 12px; line-height: 1.45; }
+.settings-account > button { justify-self: start; }
 .settings-group h2 {
   padding-inline: 4px;
   color: var(--text-accessible);
@@ -174,16 +180,6 @@
   border-radius: 12px;
   color: var(--text-primary);
 }
-.settings-allocation-name {
-  flex: 1;
-  min-width: 0;
-  font-size: 14px;
-  font-weight: 800;
-  line-height: 1.3;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
 .settings-allocation-value { font-size: 14px; font-variant-numeric: tabular-nums; }
 .settings-allocation-percent { display: inline-flex; align-items: center; gap: 4px; font-size: 13px; font-weight: 800; }
 .settings-allocation-input {
@@ -223,30 +219,7 @@
   font-variant-numeric: tabular-nums;
 }
 .settings-allocation-total.is-valid strong { color: var(--accent-ink); }
-
-.settings-category-manager { gap: 18px; }
-.settings-category-group { display: grid; gap: 8px; }
-.settings-category-group-header { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-.settings-category-group-header h3, .settings-category-delete-confirm h3 {
-  font: 800 17px/1.2 var(--font-display);
-}
-.settings-category-group-header .ui-button { min-height: 44px; padding: 8px 12px; font-size: 12px; }
-.settings-category-list {
-  display: grid;
-  gap: 1px;
-  max-height: min(34vh, 280px);
-  overflow: auto;
-  overscroll-behavior: contain;
-  border: 1px solid var(--border-hair);
-  border-radius: var(--r-input);
-  background: var(--border-soft);
-}
-.settings-category-row { display: flex; align-items: center; gap: 10px; min-height: 58px; padding: 8px 10px; background: var(--surface-2); }
-.settings-category-icon { flex: 0 0 38px; width: 38px; height: 38px; display: grid; place-items: center; border-radius: 12px; color: var(--text-primary); }
-.settings-category-copy { display: grid; flex: 1; min-width: 0; gap: 2px; }
-.settings-category-copy strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
-.settings-category-copy small { color: var(--text-accessible); font-size: 10px; line-height: 1.25; }
-.settings-category-edit, .settings-category-delete, .settings-category-back {
+.settings-category-edit, .settings-category-delete {
   display: inline-flex; align-items: center; justify-content: center; gap: 5px; min-height: 44px; min-width: 44px;
   border: 0; border-radius: 12px; background: transparent; color: var(--accent-ink); font-weight: 800;
 }
@@ -254,20 +227,6 @@
 .settings-category-delete { width: 44px; color: var(--danger-ink); }
 .settings-category-edit:hover, .settings-category-delete:hover { background: var(--surface); }
 .settings-category-status { color: var(--accent-ink); font-size: 13px; font-weight: 800; }
-.settings-category-editor { gap: 16px; }
-.settings-category-back { justify-self: start; padding: 0 10px; color: var(--text-accessible); }
-.settings-category-fieldset { display: grid; gap: 8px; margin: 0; padding: 0; border: 0; }
-.settings-category-fieldset legend { margin-bottom: 8px; color: var(--text-primary); font-size: 13px; font-weight: 800; }
-.settings-category-options { display: grid; grid-template-columns: repeat(auto-fit, minmax(44px, 1fr)); gap: 6px; }
-.settings-category-option, .settings-category-color {
-  width: 100%; min-height: 44px; display: grid; place-items: center; border: 1px solid var(--border-hair);
-  border-radius: 12px; background: var(--surface-2); color: var(--text-primary);
-}
-.settings-category-option.is-selected, .settings-category-color.is-selected { outline: 2px solid var(--accent-ink); outline-offset: 1px; }
-.settings-category-colors { grid-template-columns: repeat(auto-fit, minmax(44px, 1fr)); }
-.settings-category-color { min-height: 44px; border-radius: 50%; background: var(--category-color); }
-.settings-category-delete-confirm { padding-top: 4px; }
-.settings-category-delete-confirm h3 { font-size: 19px; }
 .settings-recurring-manager { gap: 16px; }
 .settings-recurring-list {
   display: grid;
@@ -290,14 +249,16 @@
 .settings-recurring-delete h3 { font: 800 19px/1.2 var(--font-display); }
 
 @media (max-width: 359px) {
+  .settings-row { display:grid; grid-template-columns:36px minmax(0, 1fr) 16px; column-gap:10px; row-gap:4px; }
+  .settings-row > .settings-tile { grid-column:1; grid-row:1 / span 2; }
+  .settings-row-label { grid-column:2; grid-row:1; overflow-wrap:anywhere; }
+  .settings-row-value { grid-column:2; grid-row:2; white-space:normal; overflow:visible; text-overflow:clip; overflow-wrap:anywhere; }
+  .settings-row-chevron { grid-column:3; grid-row:1 / span 2; }
   .settings-allocation-item { padding: 10px 8px; }
   .settings-allocation-main { gap: 6px; }
   .settings-allocation-icon { flex-basis: 30px; width: 30px; height: 30px; border-radius: 9px; }
   .settings-allocation-input { width: 48px; padding-inline: 4px; }
   .settings-allocation-percent { gap: 2px; font-size: 12px; }
-  .settings-category-options, .settings-category-colors { grid-template-columns: repeat(auto-fit, minmax(44px, 1fr)); }
-  .settings-category-row { gap: 6px; padding-inline: 8px; }
-  .settings-category-icon { flex-basis: 34px; width: 34px; height: 34px; }
   .settings-recurring-row { gap: 4px; padding-inline: 7px; }
   .settings-recurring-row .settings-category-edit { padding-inline: 6px; }
 }
@@ -312,3 +273,7 @@
 .bucket-manager select, .settings-form > label select { min-height: 44px; width: 100%; min-width: 0; border: 1px solid var(--border-hair); border-radius: 10px; padding: 10px; background: var(--surface); color: var(--text-primary); }
 .bucket-manager input[type='color'] { min-height: 44px; width: 100%; }
 @media (max-width: 380px) { .bucket-manager-fields { grid-template-columns: minmax(0, 1fr); } }
+.settings-bucket-name { flex:1; min-width:0; }
+.settings-bucket-name .ui-field-feedback { display:none; }
+.settings-bucket-name > label { font-size:11px; color:var(--text-accessible); }
+.settings-bucket-name input { min-width:0; width:100%; }

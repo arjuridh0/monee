@@ -9,6 +9,7 @@ import { isPeriodLocked } from '@/core/finance/period-lock'
 import { useRupiah } from '@/hooks/useRupiah'
 import { useMoneeStore } from '@/store'
 import type { SavingsSource, Transaction } from '@/core/finance/types'
+import { savingsErrorMessage } from './errors'
 
 export function SavingsExpenseDetail({ transaction, onClose }: { transaction: Transaction; onClose: () => void }) {
   const rupiah = useRupiah()
@@ -31,7 +32,7 @@ export function SavingsExpenseDetail({ transaction, onClose }: { transaction: Tr
       await useMoneeStore.getState().updateTransaction({ ...transaction, amount: Number(amount), note: note.trim(), date,
         savingsSource: source, updatedAt: Date.now() }, transaction)
       onClose()
-    } catch (cause) { setError(cause instanceof Error ? cause.message : 'Pengeluaran belum dapat diubah.') }
+    } catch (cause) { setError(savingsErrorMessage(cause, 'Pengeluaran belum dapat diubah. Coba lagi.')) }
     finally { setBusy(false) }
   }
   return <Dialog open sheet title="Detail pengeluaran tabungan" onClose={close}>
@@ -64,7 +65,7 @@ export function SavingsExpenseDetail({ transaction, onClose }: { transaction: Tr
         <FuseButton label="Ya, hapus" doneLabel="Pengeluaran dihapus" undoWindow={4000} commitOn="fuseEnd" disabled={locked}
           onPhaseChange={setPhase} onSettled={onClose}
           onCommit={async () => { await useMoneeStore.getState().updateTransaction({ ...transaction, deleted: true, updatedAt: Date.now() }, transaction) }}
-          onUndo={() => {}} getErrorMessage={cause => cause instanceof Error ? cause.message : 'Pengeluaran belum dapat dihapus.'} />
+          onUndo={() => {}} getErrorMessage={cause => savingsErrorMessage(cause, 'Pengeluaran belum dapat dihapus. Coba lagi.')} />
         <Button variant="ghost" disabled={phase !== 'idle'} onClick={() => setMode('view')}>Kembali</Button>
       </>}
     </div>

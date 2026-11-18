@@ -83,18 +83,102 @@ function migrateBucket(old: LegacyRecord, allowSavings: boolean): Bucket {
 
 let _db: MoneeDB | null = null
 let _opening: Promise<MoneeDB> | null = null
+let activeAccountId: string | undefined
+let accountGeneration = 0
+
+/** Select the isolated local database associated with the authenticated account. */
+export function setActiveAccountId(accountId: string | undefined): void {
+  if (accountId !== undefined && !/^acct_[a-f0-9]{64}$/.test(accountId)) throw new Error('ID akun tidak valid.')
+  if (activeAccountId === accountId) return
+  accountGeneration += 1
+  _db?.close()
+  _db = null
+  _opening = null
+  activeAccountId = accountId
+}
+
+export interface LegacyDataPreview {
+  profileName: string | null
+  buckets: number
+  categories: number
+  transactions: number
+  recurringIncomes: number
+  goals: number
+  monthSweeps: number
+}
+
+async function inspectLegacyDatabase(): Promise<{ db: MoneeDB; preview: LegacyDataPreview }> {
+  const db = await openAndCleanDatabase(DB_NAME, false)
+  const [profile, buckets, categories, transactions, recurringIncomes, goals, monthSweeps] = await Promise.all([
+    db.get('profile', 'profile'), db.getAll('buckets'), db.getAll('categories'), db.getAll('transactions'),
+    db.getAll('recurringIncomes'), db.getAll('goals'), db.getAll('monthSweeps'),
+  ])
+  return { db, preview: { profileName: profile?.name ?? null, buckets: buckets.length, categories: categories.length,
+    transactions: transactions.length, recurringIncomes: recurringIncomes.length, goals: goals.length, monthSweeps: monthSweeps.length } }
+}
+
+/** Return a count preview; this never copies or removes local data. */
+export async function inspectLegacyData(): Promise<LegacyDataPreview> {
+  const { db, preview } = await inspectLegacyDatabase()
+  db.close()
+  return preview
+}
+
+/** Copy the original browser ledger into the selected account DB after the user confirms. */
+export async function importLegacyData(options: { replaceConfirmed?: boolean } = {}): Promise<LegacyDataPreview> {
+  if (!activeAccountId) throw new Error('Masuk ke akun sebelum memindahkan data.')
+  const { db: legacy, preview } = await inspectLegacyDatabase()
+  try {
+    if (!preview.profileName) return preview
+    const target = await openDatabase()
+    const stores = Object.values(STORES).filter(store => !options.replaceConfirmed || (store !== 'settings' && store !== 'lockout'))
+    const counts = await Promise.all(stores.map(store => target.count(store)))
+    if (counts.some(Boolean) && !options.replaceConfirmed) throw new Error('Data akun sudah tersedia di perangkat ini.')
+    const legacyRecords = await Promise.all(stores.map(store => legacy.getAll(store)))
+    const tx = target.transaction(stores, 'readwrite')
+    try {
+      const currentProfile = await tx.objectStore('profile').get('profile')
+      for (let index = 0; index < stores.length; index += 1) {
+        const store = tx.objectStore(stores[index]!)
+        if (options.replaceConfirmed) await store.clear()
+        for (const record of legacyRecords[index]!) {
+          const next = options.replaceConfirmed && stores[index] === 'profile'
+            ? { ...record, pinHash: currentProfile?.pinHash ?? '', pinSalt: currentProfile?.pinSalt ?? '' } : record
+          await store.put(next as never)
+        }
+      }
+      await tx.done
+    } catch (error) {
+      try { tx.abort() } catch { /* Already aborted or complete. */ }
+      await tx.done.catch(() => undefined)
+      throw error
+    }
+    return preview
+  } finally { legacy.close() }
+}
 
 /** Buka (atau buat) IndexedDB, jalankan migrasi jika versi baru */
 export async function openDatabase(): Promise<MoneeDB> {
   if (_db) return _db
   if (_opening) return _opening
-  _opening = openAndCleanDatabase()
-  try { return await _opening }
-  finally { _opening = null }
+  const databaseName = activeAccountId ? `${DB_NAME}-${activeAccountId}` : DB_NAME
+  const generation = accountGeneration
+  const opening = openAndCleanDatabase(databaseName).then(db => {
+    if (generation !== accountGeneration) {
+      db.close()
+      if (_db === db) _db = null
+      throw new Error('Akun berubah saat penyimpanan dibuka. Coba lagi.')
+    }
+    _db = db
+    return db
+  })
+  _opening = opening
+  try { return await opening }
+  finally { if (_opening === opening) _opening = null }
 }
 
-async function openAndCleanDatabase(): Promise<MoneeDB> {
-  const db = await openDB<MoneeSchema>(DB_NAME, DB_VERSION, {
+async function openAndCleanDatabase(databaseName: string, cache = true): Promise<MoneeDB> {
+  const db = await openDB<MoneeSchema>(databaseName, DB_VERSION, {
     async upgrade(db, oldVersion, _newVersion, tx) {
       if (oldVersion < 1) {
         for (const def of STORE_DEFS) {
@@ -159,20 +243,21 @@ async function openAndCleanDatabase(): Promise<MoneeDB> {
       console.warn('[monee] DB blocked -- tab lain masih pakai versi lama')
     },
     blocking() {
-      _db?.close()
-      _db = null
+      if (cache) { _db?.close(); _db = null }
     },
   })
 
   try {
     await db.delete(STORES.settings, 'groq-voice-credential')
-    _db = db
     return db
   } catch (cause) { db.close(); throw cause }
 }
 
 /** Reset singleton (untuk testing dengan fake-indexeddb) */
 export function resetDbSingleton(): void {
+  accountGeneration += 1
+  _db?.close()
   _db = null
   _opening = null
+  activeAccountId = undefined
 }

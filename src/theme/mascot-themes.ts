@@ -27,9 +27,9 @@ export const MASCOT_THEMES = {
     navBg: '#1E2A44', navBg2: '#2B3A5C', navText: '#9FB0CE', navAccent: '#5C8FD6', onAccent: '#FFFFFF',
   },
   bumi: {
-    id: 'bumi', name: 'Bumi', accent: '#C0862B', accentVivid: '#E0A84A',
+    id: 'bumi', name: 'Bumi', accent: '#9C641D', accentVivid: '#E0A84A',
     accentSoft: '#F8E9CE', accentInk: '#654510', bgTone: '#FAF3E6',
-    navBg: '#4A3418', navBg2: '#5E4423', navText: '#D2BE96', navAccent: '#E0A84A', onAccent: '#2E2A24',
+    navBg: '#4A3418', navBg2: '#5E4423', navText: '#D2BE96', navAccent: '#E0A84A', onAccent: '#FFFFFF',
   },
 } as const satisfies Record<MascotId, MascotTheme>
 

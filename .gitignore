@@ -20,6 +20,9 @@ pnpm-debug.log*
 /.termul/
 /.agents/
 /.gemini/
+/.codex/
+/.idea/
+*.code-workspace
 .DS_Store
 Thumbs.db
 
@@ -39,6 +42,14 @@ wrangler.local.json
 *.pfx
 id_rsa
 id_ed25519
+*.p8
+*.jks
+*.keystore
+.pypirc
+.netrc
+_netrc
+/credentials*.json
+/service-account*.json
 
 # Local database files and backups
 *.sqlite
@@ -47,7 +58,27 @@ id_ed25519
 *.db
 *.db-wal
 *.db-shm
+/backups/
+/exports/
+*.dump
+*.sql.gz
+*.sql.zip
+
+# Disposable editor, Python and diagnostic output
+*.tmp
+*.bak
+*.orig
+*.rej
+__pycache__/
+*.py[cod]
+*.har
+*.heapsnapshot
+*.cpuprofile
 
 # Generated design previews
 /design/exports/
 /design/.pen-preview-tmp.html
+# Single local QA report (temporary lock/write files are removed automatically)
+/LOCAL_REPORT.md
+/LOCAL_REPORT.md.lock
+/LOCAL_REPORT.md.tmp

@@ -12,12 +12,24 @@
   font-display: swap;
   src: url('/fonts/baloo-2-latin.woff2') format('woff2');
 }
+
 @font-face {
-  font-family: 'Nunito';
+  font-family: 'Satoshi';
   font-style: normal;
-  font-weight: 400 800;
+  font-weight: 400;
   font-display: swap;
-  src: url('/fonts/nunito-latin.woff2') format('woff2');
+  src: url('/fonts/satoshi-400.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Satoshi';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url('/fonts/satoshi-500.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Satoshi'; font-style: normal; font-weight: 600 900;
+  font-display: swap; src: url('/fonts/satoshi-700.woff2') format('woff2');
 }
 
 /* Registered so mascot theme swaps interpolate instead of snapping. */
@@ -34,42 +46,43 @@
 
 :root {
   /* --- Base --- */
-  --bg-app:         #EFE7DA;
-  --bg-deep:        #E4D8C3;
+  --bg-app:         #F7F3EA;
+  --bg-deep:        #EDE5D8;
   --surface:        #FFFFFF;
-  --surface-2:      #FAF6EE;
-  --surface-3:      #F3EDE1;
-  --text-primary:   #2E2A24;
-  --text-secondary: #6E6558;
-  --text-muted:     #9C9182;
-  --text-accessible:#5C5347;
+  --surface-2:      #FAF7F0;
+  --surface-3:      #EDE9DF;
+  --text-primary:   #222D27;
+  --text-secondary: #556158;
+  --text-muted:     #647066;
+  --text-accessible:#556158;
   --text-on-accent: #FFFFFF;
   --nav-button-ink: #241D18;
-  --border-soft:    #E7DCC9;
-  --border-hair:    #DFD3BD;
-  --shadow-card:    0 7px 18px rgba(138,111,74,0.24), inset -1px -2px 6px rgba(255,255,255,0.65);
-  --shadow-float:   0 12px 32px rgba(138,111,74,0.27), inset -1px -2px 6px rgba(255,255,255,0.65);
-  --shadow-sheet:   0 -10px 40px rgba(58,46,34,0.33);
-  --r-card-lg:      32px;
-  --r-card:         28px;
-  --r-btn:          20px;
-  --r-input:        16px;
-  --r-tile:         20px;
+  --border-soft:    #E8E4D9;
+  --border-hair:    #D8D7CA;
+  --border-control: #788579;
+  --shadow-card:    0 3px 12px rgba(62,48,25,0.04);
+  --shadow-float:   0 8px 24px rgba(62,48,25,0.10);
+  --shadow-sheet:   0 16px 64px rgba(20,36,27,0.16);
+  --r-card-lg:      26px;
+  --r-card:         20px;
+  --r-btn:          14px;
+  --r-input:        14px;
+  --r-tile:         12px;
   --r-chip:         999px;
   --control-min:    44px;
-  --font-display:   'Baloo 2', sans-serif;
-  --font-body:      'Nunito', system-ui, sans-serif;
+  --font-display:   'Baloo 2', 'Satoshi', system-ui, sans-serif;
+  --font-body:      'Satoshi', system-ui, sans-serif;
 
   /* --- Semantic --- */
   --st-normal:       #5C8F42;
   --st-aware:        #D6A03C;
   --st-warning:      #D0762F;
-  --st-danger:       #BF4B3E;
+  --st-danger:       #B54236;
   --st-danger-soft:  #F8E7E3;
   --danger-ink:      #9C382D;
   --warning-ink:     #755413;
   --income:          #3F7A4E;
-  --expense:         #BF4B3E;
+  --expense:         #B54236;
 
   /* --- Theme accent (default: Mochi / Fresh Green) --- */
   --theme-accent:      #4F7C3A;
@@ -77,7 +90,7 @@
   --theme-accent-soft: #E6EFDB;
   --theme-accent-ink:  #33501F;
   --theme-bg-tone:     #F3F0E4;
-  --app-canvas:       var(--theme-bg-tone);
+  --app-canvas:       var(--bg-app);
   --accent:           var(--theme-accent);
   --accent-vivid:     var(--theme-accent-vivid);
   --accent-soft:      var(--theme-accent-soft);
@@ -94,13 +107,13 @@
   --dur-base:   250ms;
   --dur-slow:   400ms;
   --ease-out:   cubic-bezier(0.16, 1, 0.3, 1);
-  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-spring: cubic-bezier(0.16, 1, 0.3, 1);
 
   /* --- Layout --- */
   --screen-pad-x:   20px;
-  --bottom-nav-h:   100px;
+  --bottom-nav-h:   80px;
   --sidebar-tablet: 80px;
-  --sidebar-desktop:130px;
+  --sidebar-desktop:188px;
   --layer-nav:      10;
   --layer-overlay:  30;
   --layer-toast:    40;
@@ -155,15 +168,8 @@ input::placeholder, textarea::placeholder { color: var(--text-accessible); opaci
 ::selection { background: var(--accent-soft); color: var(--accent-ink); }
 h1, h2, h3, p { margin: 0; }
 svg { flex-shrink: 0; }
-
-.safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
-.safe-top    { padding-top: env(safe-area-inset-top); }
+svg.lucide { stroke-width: 1.75; }
+h1, h2, h3 { text-wrap: balance; letter-spacing: -.025em; }
+input, textarea, select { accent-color: var(--accent); }
+html { scrollbar-color: var(--border-hair) var(--app-canvas); scrollbar-width: thin; }
 .font-tabular { font-variant-numeric: tabular-nums; }
-
-.app-container {
-  width: 100%;
-  margin-inline: auto;
-  min-height: 100dvh;
-  position: relative;
-  background: var(--app-canvas);
-}

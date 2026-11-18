@@ -1,0 +1,193 @@
+/* Monee: a warm pocket ledger, with its companion as a playful signature. */
+html { scroll-padding-block:24px calc(var(--bottom-nav-h) + 32px); }
+.app-shell :is(button,input,select,textarea,a) { scroll-margin-block:24px calc(var(--bottom-nav-h) + 24px); }
+.app-shell .tab-content-stage { overflow-x:clip; overflow-clip-margin:4px; }
+.monee-brand { display:inline-flex; align-items:center; gap:9px; font:700 25px/1 var(--font-display); letter-spacing:-.02em; color:var(--text-primary); }
+.monee-brand img { width:34px; height:34px; border-radius:10px; }
+.app-shell .ui-button { min-height:48px; font-weight:600; transition:transform var(--dur-fast) var(--ease-out),border-color var(--dur-fast),box-shadow var(--dur-fast); }
+.app-shell .ui-card { border:1px solid var(--border-soft); }
+.app-shell .ui-button--primary { box-shadow:0 3px 8px color-mix(in srgb,var(--accent) 15%,transparent); }
+.app-shell .ui-button:enabled:hover { filter:none; border-color:currentColor; }
+.app-shell .ui-button:enabled:active { transform:translateY(1px) scale(.99); box-shadow:none; }
+.app-shell :is(input:not([type='checkbox']):not([type='radio']),select,textarea),.app-shell .rb-code-slot { border-color:var(--border-control); }
+.app-shell .ui-toggle-track { background:var(--border-control); box-shadow:none; }
+.app-shell .ui-toggle[aria-checked='true'] .ui-toggle-track { background:var(--accent); }
+.app-shell .ui-chip { font-weight:500; border-radius:8px; }
+.app-shell .ui-icon-button { border-radius:50%; background:var(--surface-2); color:var(--text-secondary); }
+.app-shell .ui-icon-button:hover { background:var(--accent-soft); color:var(--accent-ink); }
+.app-shell .rb-segment { border-radius:17px; padding:5px; }
+.app-shell .rb-segment button,.app-shell .rb-segment-thumb { border-radius:12px; }
+.app-shell .rb-fuse { border-radius:var(--r-btn); min-height:48px; }
+.app-shell .rb-fuse-rim rect { rx:13px; }
+
+/* Navigation keeps a stable silhouette while its indicator travels. */
+.app-shell .sidebar { background:var(--nav-bg); border:0; gap:32px; padding-top:28px; }
+.app-shell .sidebar-brand { color:var(--nav-active); }
+.app-shell .sidebar-item { min-height:52px; color:var(--nav-text); font-weight:600; border-radius:15px; }
+.app-shell .sidebar-item:hover { background:var(--nav-bg-2); color:var(--nav-active); }
+.app-shell .sidebar-item--active { color:var(--nav-active); font-weight:700; }
+.app-shell .nav-active-pill { background:var(--nav-bg-2); }
+.app-shell .sidebar-add,.app-shell .nav-add { background:var(--nav-accent); color:var(--nav-button-ink); box-shadow:none; border-radius:16px; }
+.app-shell .bottom-nav { inset:auto 12px max(10px,env(safe-area-inset-bottom)); height:72px; padding:8px 6px; background:var(--nav-bg); border:0; border-radius:24px; gap:2px; box-shadow:0 8px 24px #30291f26; }
+.app-shell .bottom-nav::before { display:none; }
+.app-shell .nav-item { min-width:0; min-height:52px; border-radius:16px; color:var(--nav-text); }
+.app-shell .nav-item--active { color:var(--nav-active); }
+.app-shell .bottom-nav-add { align-self:center; margin:0 5px; width:48px; height:48px; border-radius:17px; }
+.app-shell .nav-label { font-size:11px; font-weight:700; }
+.app-shell :is(.nav-item,.sidebar-item) { transition:color var(--dur-fast) var(--ease-out); }
+.app-shell .nav-add { transition:transform var(--dur-fast) var(--ease-out),background-color var(--dur-fast) var(--ease-out); }
+.app-shell .nav-add:enabled:active { transform:scale(.96); }
+
+/* Rounded headings carry the character; body and currency stay quiet. */
+.app-shell .app-workspace { padding-top:26px; }
+.app-shell .settings-screen,.app-shell .welcome-dashboard,.app-shell .history-screen,.app-shell .savings-screen { gap:22px; }
+.app-shell :is(.welcome-header,.settings-header,.history-header,.savings-header) h1 { font:700 32px/1.1 var(--font-display); letter-spacing:-.025em; }
+.app-shell :is(.welcome-header,.settings-header,.history-header,.savings-header) p { margin-top:4px; font-size:13px; font-weight:500; }
+.app-shell .welcome-allocation h2,.app-shell .welcome-recent h2,.app-shell .savings-section-header h2,.app-shell .savings-ledger h2 { font:700 22px/1.2 var(--font-display); }
+.app-shell .ui-progress { height:6px; }
+
+/* One balance surface, grouped allowances, and open transaction rows. */
+.app-shell .dashboard-balance-stage { margin-top:20px; padding-top:0; }
+.app-shell .dashboard-hero-mascot { z-index:2; top:-30px; right:16px; width:126px; height:120px; pointer-events:none; }
+.app-shell .dashboard-hero-mascot > .mascot-canvas { left:-28px; top:-30px; transform:scale(.8); }
+.app-shell .dashboard-balance-stage .rb-flip { padding:22px; border:1px solid var(--border-soft); border-radius:26px; box-shadow:var(--shadow-card); }
+.app-shell .dashboard-balance-stage .rb-flip-header { padding-right:112px; font-weight:700; margin-bottom:8px; min-height:36px; }
+.app-shell .dashboard-balance-stage .rb-flip-side[data-active="false"] { inset:22px; }
+.app-shell .welcome-balance { gap:10px; }
+.app-shell .welcome-balance > strong { padding-right:80px; font:700 clamp(30px,4vw,40px)/1.15 var(--font-body); letter-spacing:-.035em; overflow-wrap:anywhere; }
+.app-shell .welcome-balance > span { font-size:12px; color:var(--text-secondary); max-width:38ch; }
+.app-shell .dashboard-money-summary { gap:8px 14px; padding-top:6px; }
+.app-shell .dashboard-money-summary > span { padding:0; background:transparent; font-size:12px; font-weight:500; }
+.money-savings { color:var(--text-secondary); }
+.app-shell .welcome-balance small { font-size:12px; }
+.app-shell .welcome-buckets-grid { padding:4px 18px; background:var(--surface); border:1px solid var(--border-soft); box-shadow:none; border-radius:20px; }
+.app-shell .dashboard-bucket { padding:14px 0; gap:8px; }
+.app-shell .dashboard-bucket-icon { border-radius:11px; width:32px; height:32px; }
+.app-shell .dashboard-bucket-heading h3 { font-weight:600; font-size:14px; }
+.app-shell .dashboard-savings-pockets { gap:12px; }
+.app-shell .dashboard-savings-pocket { padding:16px; min-height:100px; border-radius:20px; border:1px solid var(--border-soft); background:var(--surface); box-shadow:none; transition:transform var(--dur-fast),border-color var(--dur-fast); }
+.app-shell .dashboard-savings-pocket:hover { border-color:var(--accent); transform:translateY(-2px); }
+.app-shell .dashboard-savings-pocket strong { font:700 21px/1.2 var(--font-body); }
+.app-shell .welcome-recent-card,.app-shell .history-day .ui-card,.app-shell .savings-ledger-card { padding:0; background:transparent; border:0; border-radius:0; box-shadow:none; }
+.app-shell .welcome-transaction,.app-shell .history-transaction { padding:14px 0; }
+.app-shell :is(.welcome-transaction-icon,.history-transaction-icon,.savings-ledger-icon) { width:36px; flex-basis:36px; border-radius:12px; }
+.app-shell .welcome-transaction-copy strong,.app-shell .history-transaction-copy strong { font-weight:600; }
+.app-shell .welcome-transaction-copy span,.app-shell .history-transaction-copy small { font-size:12px; }
+.app-shell .welcome-transaction-amount { min-width:0; max-width:48%; }
+.app-shell .welcome-transaction-amount > small { max-width:150px; white-space:normal; text-align:right; color:var(--text-secondary); font-size:11px; line-height:1.4; }
+.app-shell .welcome-empty { padding:24px 18px; gap:10px; border:1px solid var(--border-soft); border-radius:26px; background:color-mix(in srgb,var(--accent-soft) 48%,var(--surface)); }
+.app-shell .welcome-empty h2 { font:700 25px/1.15 var(--font-display); }
+.app-shell .welcome-empty p { max-width:37ch; font-size:13px; }
+.app-shell .welcome-empty .welcome-companion { height:142px; }
+.app-shell .welcome-recent-empty { padding:4px 0; max-width:48ch; color:var(--text-secondary); font-size:13px; line-height:1.5; background:transparent; border:0; }
+
+/* Settings use one coherent group per task, with small, useful icon cues. */
+.app-shell .settings-profile { padding:18px; border-radius:20px; background:var(--accent-soft); box-shadow:none; }
+.app-shell .settings-avatar { width:48px; height:48px; flex-basis:48px; border-radius:17px; background:var(--surface); color:var(--accent-ink); }
+.app-shell .settings-profile-copy strong { font:700 22px/1.1 var(--font-display); }
+.app-shell .settings-profile-copy small { font-size:12px; font-weight:500; }
+.app-shell .settings-chevron { background:transparent; }
+.app-shell .settings-group { gap:10px; }
+.app-shell .settings-group h2 { font:700 18px/1.2 var(--font-display); letter-spacing:0; text-transform:none; padding:0 2px; color:var(--text-primary); }
+.app-shell .settings-card { border:1px solid var(--border-soft); border-radius:20px; background:var(--surface); box-shadow:none; }
+.app-shell .settings-row { min-height:62px; padding:11px 14px; gap:12px; }
+.app-shell .settings-row:not(:disabled):hover { background:var(--surface-2); }
+.app-shell .settings-tile { width:34px; height:34px; flex-basis:34px; border-radius:11px; }
+.app-shell .settings-row-label { font-size:14px; font-weight:600; }
+.app-shell .settings-row-value { max-width:38%; white-space:normal; text-align:right; line-height:1.35; font-size:12px; font-weight:500; color:var(--text-secondary); }
+.app-shell .settings-footer { padding:0 2px; }
+.app-shell .pwa-controls details { border:1px solid var(--border-soft); border-radius:20px; background:var(--surface); }
+.app-shell .pwa-controls summary { font-weight:600; }
+
+.app-shell .history-summary { gap:10px; }
+.app-shell .history-summary .ui-card { border-radius:16px; padding:14px 12px; box-shadow:none; }
+.app-shell .history-summary span { font-size:12px; font-weight:500; }
+.app-shell .history-summary strong { font-family:var(--font-body); font-weight:700; }
+.app-shell .history-summary small { font-size:11px; color:var(--text-secondary); }
+.app-shell .history-filters { border:1px solid var(--border-soft); border-radius:16px; background:var(--surface); }
+.app-shell .history-analytics .finance-chart-card { padding:16px 8px; border:0; background:transparent; box-shadow:none; }
+.app-shell .history-day h2 { font:700 18px/1.2 var(--font-display); }
+.app-shell .savings-hero { background:var(--accent-soft); color:var(--accent-ink); border:0; border-radius:26px; padding:22px; }
+.app-shell .savings-hero > svg { width:46px; color:var(--accent-ink); }
+.app-shell .savings-hero strong,.app-shell .savings-pocket strong { font-family:var(--font-body); font-weight:700; }
+.app-shell .savings-pocket { padding:20px; box-shadow:none; }
+.app-shell .savings-pocket h2 { font:700 22px/1.2 var(--font-display); }
+.app-shell .savings-goal { border-radius:20px; padding:18px; box-shadow:none; }
+.app-shell .savings-goal h3 { font:700 20px/1.2 var(--font-display); }
+.app-shell .savings-empty { grid-template-columns:88px minmax(0,1fr); align-items:center; justify-items:start; gap:8px 16px; padding:16px 0; text-align:left; }
+.app-shell .savings-empty-mascot { grid-column:1; grid-row:1 / span 3; width:88px; height:112px; background:transparent; }
+.app-shell .savings-empty-mascot .mascot-canvas,.app-shell .savings-empty-mascot canvas { width:104px !important; height:104px !important; }
+.app-shell .savings-empty > :not(.savings-empty-mascot) { grid-column:2; }
+.app-shell .savings-empty h2 { font-size:23px; }
+.app-shell .savings-empty .ui-button { min-height:44px; padding:10px 16px; margin-top:4px; }
+.app-shell .history-empty-blob { width:144px; height:144px; }
+.app-shell .live-analytics { gap:20px; }
+.app-shell .live-analytics > h2 { font:700 23px/1.2 var(--font-display); }
+.app-shell .live-analytics .ui-card { padding:20px; }
+.app-shell .live-analytics h3 { font:600 13px/1.4 var(--font-body); }
+.app-shell .analytics-total { font:700 28px/1.2 var(--font-body); color:var(--accent-ink); }
+.app-shell .live-analytics p { font-size:12px; }
+.app-shell .analytics-insight { padding:14px; border-radius:14px; color:var(--warning-ink); }
+
+/* Forms stay tactile and readable, including keyboard and pending states. */
+.app-shell .ui-dialog { border-radius:24px; box-shadow:var(--shadow-sheet); }
+.app-shell .ui-dialog::backdrop { background:#30291f55; }
+.app-shell .ui-dialog-header { padding:20px 20px 12px; border:0; }
+.app-shell .ui-dialog-header h2 { font:700 25px/1.15 var(--font-display); letter-spacing:-.02em; }
+.app-shell .ui-dialog-body { padding:12px 20px 20px; }
+.app-shell .ui-dialog--sheet { border-radius:26px 26px 0 0; }
+.app-shell .ui-dialog--immersive { margin:auto; width:min(920px,100%); max-width:100%; height:100dvh; max-height:100dvh; border-radius:0; box-shadow:none; background:linear-gradient(155deg,var(--theme-bg-tone),var(--app-canvas) 70%); }
+.app-shell .ui-dialog--immersive::backdrop { background:var(--app-canvas); }
+.app-shell .ui-dialog--immersive .ui-dialog-panel { min-height:100%; grid-template-rows:auto 1fr; }
+.app-shell .ui-dialog--immersive .ui-dialog-header { position:relative; justify-content:flex-start; gap:12px; padding:24px 28px 8px; background:transparent; }
+.app-shell .ui-dialog--immersive .ui-dialog-header .ui-icon-button { order:-1; background:transparent; }
+.app-shell .ui-dialog--immersive .ui-dialog-body { display:grid; align-content:center; padding:16px 28px 32px; }
+.app-shell .voice-capture { background:transparent; padding-inline:0; }
+.app-shell .voice-review-hint { background:var(--accent-soft); border-radius:12px; padding:10px 12px; color:var(--accent-ink); }
+.app-shell .quick-amounts button { border-radius:12px; }
+.app-shell .quick-add-buckets button { border-radius:14px; min-height:60px; }
+.app-shell .quick-add-tools .ui-button { font-size:13px; }
+.app-shell .onboarding-eyebrow { display:none; }
+.app-shell .onboarding-buckets { border:1px solid var(--border-soft); box-shadow:none; }
+.app-shell .pin-brand { color:var(--text-secondary); }
+.app-shell .pin-heading h1 { font:700 30px/1.15 var(--font-display); }
+.app-shell .rb-code-slot { border-radius:13px; }
+.app-shell .rb-code-slot[data-filled="true"] { background:var(--accent-soft); color:var(--accent-ink); border-color:var(--accent); }
+@media (min-width:600px) {
+  .app-shell .welcome-empty { grid-template-columns:minmax(0,1fr) 148px; text-align:left; justify-items:start; align-items:center; padding:28px; }
+  .app-shell .welcome-empty > h2,.app-shell .welcome-empty > p,.app-shell .welcome-empty > .ui-button { grid-column:1; }
+  .app-shell .welcome-empty .welcome-companion { grid-column:2; grid-row:1 / span 4; }
+  .app-shell .welcome-empty > .ui-button { margin-top:6px; }
+  .app-shell .welcome-empty .welcome-greeting { text-align:left; }
+}
+@media (min-width:768px) {
+  .app-shell .sidebar-brand > span { display:none; }
+  .app-shell .ui-dialog--sheet { border-radius:24px; }
+  .app-shell .ui-dialog--immersive { height:min(800px,100dvh); }
+  .app-shell .app-workspace { padding-top:32px; }
+}
+@media (min-width:1024px) {
+  .app-shell .sidebar-brand > span { display:block; }
+  .app-shell .sidebar { padding-inline:20px; }
+  .app-shell .sidebar-item { gap:12px; }
+  .app-shell .sidebar-item .nav-label { font-size:14px; font-weight:600; }
+}
+@media (max-width:600px) {
+  .app-shell .ui-dialog--immersive .ui-dialog-header { padding:16px 12px 0; }
+  .app-shell .ui-dialog--immersive .ui-dialog-body { padding:16px 12px 32px; }
+  .app-shell .ui-dialog-body,.app-shell .ui-dialog-header { padding:16px; }
+  .app-shell .welcome-balance > strong { padding-right:55px; }
+  .app-shell .dashboard-hero-mascot { right:0; transform:scale(.8); transform-origin:top right; }
+  .app-shell .dashboard-balance-stage .rb-flip-header { padding-right:80px; }
+}
+@media (max-width:360px) {
+  .app-shell .app-workspace { padding-inline:16px; }
+  .app-shell .settings-row { gap:9px; padding-inline:12px; }
+  .app-shell .settings-row-label { font-size:13px; }
+  .app-shell .settings-row-value { max-width:36%; font-size:11px; }
+  .app-shell .history-summary { gap:8px; }
+  .app-shell .history-summary .ui-card { padding-inline:9px; }
+}
+@media (prefers-reduced-motion:reduce) {
+  .app-shell .ui-button:enabled:active,.app-shell .dashboard-savings-pocket:hover { transform:none; }
+}

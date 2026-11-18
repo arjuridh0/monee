@@ -13,25 +13,19 @@ export default defineConfig({
     tailwindcss(),
     VitePWA({
       registerType: 'prompt',
-      includeAssets: ['icons/*.png', 'fonts/*.woff2', 'draco/*.{js,wasm}'],
+      includeAssets: ['icons/*.{png,svg}', 'favicon.ico', 'fonts/*.woff2'],
       workbox: {
         navigateFallbackDenylist: navigationDenylist,
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2,wasm}'],
-        globIgnores: ['**/*.glb'],
         cleanupOutdatedCaches: true,
-        runtimeCaching: [{
-          urlPattern: /\/mascots\/3d\/[^/]+\.glb$/,
-          handler: 'CacheFirst',
-          options: { cacheName: 'monee-mascot-models-v1', cacheableResponse: { statuses: [200] }, expiration: { maxEntries: 3, maxAgeSeconds: 60 * 60 * 24 * 365 } },
-        }],
       },
       manifest: {
         name: 'Monee — Pencatat Keuangan',
         short_name: 'Monee',
         description: 'Pencatat keuangan pribadi dengan maskot',
         lang: 'id',
-        theme_color: '#EFE7DA',
-        background_color: '#FAF7F2',
+        theme_color: '#F6F7F3',
+        background_color: '#F6F7F3',
         display: 'standalone',
         start_url: '/',
         icons: [

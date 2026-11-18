@@ -10,11 +10,6 @@
 .live-analytics h3 { font-size: 13px; margin-bottom: 12px; }
 .live-analytics p { font-size: 12px; color: var(--text-accessible); }
 .analytics-total { display: block; color: var(--accent-ink); font: 800 26px/1.2 var(--font-display); margin-bottom: 8px; }
-.analytics-chart { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 8px; }
-.analytics-bar-column { min-width: 0; text-align: center; font-size: 10px; }
-.analytics-bar-column span, .analytics-bar-column strong { display: block; overflow-wrap: anywhere; margin-top: 6px; }
-.analytics-bar-track { height: 120px; display: flex; align-items: end; }
-.analytics-bar { width: 100%; border-radius: 6px 6px 0 0; }
 .analytics-insight { display: flex; align-items: start; gap: 8px; padding: 16px; border-radius: var(--r-input); background: var(--accent-soft); color: var(--accent-ink); }
 .app-main:focus { outline: none; }
 .app-shell.app-shell--guest { padding-inline-start: 0; }

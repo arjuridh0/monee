@@ -3,16 +3,30 @@
   "name": "monee",
   "main": "server/index.ts",
   "compatibility_date": "2026-10-29",
+  "compatibility_flags": ["enable_request_signal"],
   "keep_vars": true,
+  "vars": {
+    "ACCESS_TEAM_DOMAIN": "https://monee-family.cloudflareaccess.com"
+  },
   "assets": {
     "directory": "./dist",
     "binding": "ASSETS",
     "not_found_handling": "single-page-application",
-    "run_worker_first": ["/api", "/api/*", "/auth/refresh"]
+    "run_worker_first": ["/api", "/api/*", "/auth/refresh", "/auth/bootstrap"]
   },
+  "d1_databases": [{
+    "binding": "DB",
+    "database_name": "monee",
+    "database_id": "f054fb21-fe31-4b0c-a475-6e7e81a1dd59",
+    "migrations_dir": "migrations"
+  }],
   "ratelimits": [{
     "name": "AI_RATE_LIMIT",
     "namespace_id": "1001",
+    "simple": { "limit": 10, "period": 60 }
+  }, {
+    "name": "AUTH_RATE_LIMIT",
+    "namespace_id": "1002",
     "simple": { "limit": 10, "period": 60 }
   }],
   "observability": { "enabled": false }

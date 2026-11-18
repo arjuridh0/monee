@@ -9,11 +9,12 @@
 .rb-flip--back { background: var(--accent); color: var(--text-on-accent); }
 .rb-code { display: grid; justify-items: start; gap: 12px; min-width: 0; }
 .rb-code-label { font-weight: 800; font-size: 14px; }
-.rb-code-row { position: relative; display: flex; width: 100%; max-width: 304px; gap: 8px; border-radius: 12px; }
+.rb-code-row { position: relative; display: flex; width: 100%; max-width: 304px; gap: 8px; border-radius: 10px; }
 .rb-code-row input { position: absolute; z-index: 1; inset: 0; width: 100%; height: 100%; opacity: 0; font-size: 16px; cursor: text; }
 .rb-code-row:focus-within { outline: 3px solid var(--focus-ring); outline-offset: 4px; }
-.rb-code-slot { display: grid; place-items: center; flex: 1 1 44px; min-width: 0; height: 44px; border: 1px solid var(--border-hair); border-radius: 12px; background: var(--surface); color: var(--text-primary); font-size: 24px; font-weight: 800; }
-.rb-code-slot[data-filled="true"], .rb-code-row[data-status="success"] .rb-code-slot { background: var(--accent); color: var(--text-on-accent); border-color: var(--accent); }
+.rb-code-slot { display: grid; place-items: center; flex: 1 1 44px; min-width: 0; height: 48px; border: 1px solid var(--border-control); border-radius: 10px; background: var(--surface); color: var(--text-primary); font-size: 23px; font-weight: 750; transition: background-color 180ms ease-out, border-color 180ms ease-out, transform 180ms cubic-bezier(.22, 1, .36, 1); }
+.rb-code-slot[data-filled="true"], .rb-code-row[data-status="success"] .rb-code-slot { background: var(--accent-soft); color: var(--accent-ink); border-color: var(--accent); }
+.rb-code-slot[data-filled="true"] { transform: translateY(-1px); }
 .rb-code-row[data-status="error"] .rb-code-slot { border-color: var(--danger-ink); background: var(--st-danger-soft); }
 .rb-code:has(input:disabled) { opacity: 0.55; }
 .rb-code-slot { position: relative; }
@@ -27,12 +28,13 @@
 .rb-segment-thumb { position: absolute; z-index: -1; inset: 0; border-radius: 14px; background: var(--surface); box-shadow: var(--shadow-card); }
 .rb-segment-content { display: flex; align-items: center; justify-content: center; gap: 8px; position: relative; }
 .rb-fuse-group { display: grid; gap: 8px; }
-.rb-fuse { display: inline-flex; position: relative; isolation: isolate; align-items: center; justify-content: center; gap: 8px; min-height: 56px; padding: 12px 24px; border: 0; border-radius: 20px; background: var(--accent); color: var(--text-on-accent); font-weight: 800; box-shadow: var(--shadow-float); }
+.rb-fuse { display: inline-flex; position: relative; isolation: isolate; align-items: center; justify-content: center; gap: 8px; min-height: 52px; padding: 10px 20px; border: 0; border-radius: var(--r-btn); background: var(--accent); color: var(--text-on-accent); font-weight: 800; box-shadow: none; transition: transform 160ms cubic-bezier(.22, 1, .36, 1); }
+.rb-fuse:enabled:active { transform: scale(.98); }
 .rb-fuse[data-phase="armed"] { background: var(--nav-bg); color: var(--nav-active); }
 .rb-fuse[data-phase="settled"] { background: var(--accent-soft); color: var(--accent-ink); }
 .rb-fuse:disabled { cursor: default; box-shadow: none; }
-.rb-fuse[data-phase="idle"]:disabled { opacity: 0.55; }
+.rb-fuse[data-phase="idle"]:disabled:not([aria-busy='true']) { opacity:1; background:var(--surface-3); color:var(--text-secondary); }
 .rb-fuse-rim { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
-.rb-fuse-rim rect { x: 1px; y: 1px; width: calc(100% - 2px); height: calc(100% - 2px); rx: 19px; fill: none; stroke: #F5A524; stroke-width: 2px; stroke-linecap: round; stroke-dasharray: 1; animation: fuse-burn var(--fuse-duration) linear forwards; }
+.rb-fuse-rim rect { x: 1px; y: 1px; width: calc(100% - 2px); height: calc(100% - 2px); rx: 10px; fill: none; stroke: #F5A524; stroke-width: 2px; stroke-linecap: round; stroke-dasharray: 1; animation: fuse-burn var(--fuse-duration) linear forwards; }
 @keyframes fuse-burn { to { stroke-dashoffset: -1; } }
-@media (prefers-reduced-motion: reduce) { .rb-fuse-rim rect { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .rb-fuse-rim rect { animation: none; } .rb-code-slot, .rb-fuse { transition: none; } }

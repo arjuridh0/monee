@@ -16,7 +16,7 @@ export interface MascotCanvasProps {
   className?: string
 }
 
-/** Live 2.5D companion; the canvas engine loads independently of the 3D picker. */
+/** Live 2.5D companion; shared by the picker and daily finance screens. */
 export function MascotCanvas({
   mascotId = 'mochi', state = 'greeting', size = 216, className = '',
 }: MascotCanvasProps) {

@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, type ReactNode } from 'react'
-import { X } from 'lucide-react'
+import { ArrowLeft, X } from 'lucide-react'
 import './ui.css'
 
 export interface DialogProps {
@@ -8,9 +8,10 @@ export interface DialogProps {
   title: string
   children: ReactNode
   footer?: ReactNode
+  presentation?: 'standard' | 'immersive'
 }
 
-export function Dialog({ open, onClose, title, children, footer, sheet = false }: DialogProps & { sheet?: boolean }) {
+export function Dialog({ open, onClose, title, children, footer, sheet = false, presentation = 'standard' }: DialogProps & { sheet?: boolean }) {
   const ref = useRef<HTMLDialogElement>(null)
   const titleId = useId()
   useEffect(() => {
@@ -23,7 +24,7 @@ export function Dialog({ open, onClose, title, children, footer, sheet = false }
     return () => dialog?.close()
   }, [open])
 
-  return <dialog ref={ref} aria-labelledby={titleId} className={`ui-dialog${sheet ? ' ui-dialog--sheet' : ''}`}
+  return <dialog ref={ref} aria-labelledby={titleId} className={`ui-dialog${sheet ? ' ui-dialog--sheet' : ''}${presentation === 'immersive' ? ' ui-dialog--immersive' : ''}`}
     onCancel={event => { event.preventDefault(); onClose() }}
     onKeyDown={event => {
       if (event.key !== 'Tab') return
@@ -39,8 +40,8 @@ export function Dialog({ open, onClose, title, children, footer, sheet = false }
     <div className="ui-dialog-panel">
       {sheet && <div className="ui-sheet-handle" aria-hidden="true" />}
       <header className="ui-dialog-header"><h2 id={titleId}>{title}</h2>
-        <button type="button" className="ui-icon-button" aria-label={`Tutup ${title}`} onClick={onClose}>
-          <X size={20} aria-hidden="true" />
+        <button type="button" className="ui-icon-button" aria-label={`${presentation === 'immersive' ? 'Kembali dari' : 'Tutup'} ${title}`} onClick={onClose}>
+          {presentation === 'immersive' ? <ArrowLeft size={22} aria-hidden="true" /> : <X size={20} aria-hidden="true" />}
         </button>
       </header>
       <div className="ui-dialog-body">{children}</div>

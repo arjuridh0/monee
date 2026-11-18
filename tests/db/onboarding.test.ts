@@ -27,6 +27,14 @@ afterEach(() => {
 })
 
 describe('completeOnboarding', () => {
+  it('allows onboarding without a device PIN', async () => {
+    const db = await openDatabase()
+    await seedDefaultData(db)
+    const { profile } = await completeOnboarding(db, { ...makeInput(), pin: undefined })
+    expect(profile.pinHash).toBe('')
+    expect(profile.pinSalt).toBe('')
+  })
+
   it('commits profile, allocation and salted PIN without income when skipped', async () => {
     const db = await openDatabase()
     await seedDefaultData(db)

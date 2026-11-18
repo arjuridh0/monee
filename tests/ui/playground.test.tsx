@@ -25,7 +25,10 @@ describe('UI playground', () => {
     const html = readFileSync('index.html', 'utf8')
     const css = readFileSync('src/theme/tokens.css', 'utf8')
     expect(html).not.toContain('fonts.googleapis.com')
-    expect(css).toContain('/fonts/baloo-2-latin.woff2')
-    expect(css).toContain('/fonts/nunito-latin.woff2')
+    for (const weight of [400, 500, 700]) {
+      expect(css).toContain(`/fonts/satoshi-${weight}.woff2`)
+    }
+    expect(html).toContain('/fonts/satoshi-400.woff2')
+    expect(html).toContain('/fonts/satoshi-700.woff2')
   })
 })

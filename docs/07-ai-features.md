@@ -1,6 +1,6 @@
 # 07 — AI Features Specification (Voice Input & OCR)
 
-> Voice: `src/features/voice/` dan `src/core/stt/transcribe.ts`. Persiapan OCR v1 memiliki alur review manual; model/provider belum dipilih.
+> Voice: `src/features/voice/` dan `src/core/stt/transcribe.ts`. OCR memakai Google Gemini melalui Worker dan wajib ditinjau sebelum disimpan.
 > Parser berjalan lokal, review menyimpan satu draft per konfirmasi dengan undo 2 detik.
 > Batas pengujian: request voice otomatis menggunakan mock, belum secret hosting/audio asli. Status integrasi dan pekerjaan tersisa: [task](task.md).
 
@@ -9,33 +9,35 @@
 ## A1. Flow
 
 ```text
-Buka aplikasi -> login kode email Cloudflare Access (pemilik/undangan) -> PIN lokal
-Tap mic di quick-add -> persetujuan pengiriman audio sebelum merekam
+Buka aplikasi -> login email + PIN akun Monee (PIN perangkat opsional)
+Tap Catat -> layar suara (Ketik manual / Scan struk tersedia)
+-> ketuk ikon mic untuk mulai; tanpa checkbox atau rekam otomatis
 -> MediaRecorder merekam bahasa Indonesia, maksimal 30 detik
 -> stop manual atau deteksi jeda bila didukung
 -> POST /api/transcribe pada origin sendiri, FormData field file, maksimal 10 MiB
--> Worker memverifikasi JWT Access dan rate limit pengguna
+-> Worker memverifikasi sesi akun Monee dan rate limit pengguna
 -> Groq whisper-large-v3 mengembalikan teks
 -> parser lokal deterministik -> draft -> review/koreksi -> simpan (undo 2 detik)
 ```
 
-Tidak ada formulir API key untuk pengguna. Pemilik memasang secret dan akses hosting sekali sesuai [deployment](deployment.md). Sesi email Access mengizinkan pemakaian layanan; PIN melindungi sesi ledger pada perangkat dan tidak menggantikan otorisasi server.
+Tidak ada formulir API key untuk pengguna. Pemilik memasang secret dan akses hosting sekali sesuai [deployment](deployment.md). Sesi akun Monee mengizinkan pemakaian layanan; PIN perangkat opsional melindungi ledger pada perangkat dan tidak menggantikan otorisasi server.
 
 **Fallback:** izin mic ditolak, layanan belum disiapkan, timeout, kuota/rate limit atau offline memberi pesan dan tindakan lokal; teks/manual tetap tersedia dan isi form dipertahankan.
 
-**Sesi Access habis:** klien memakai redirect manual dan mengenali respons redirect/401 sebagai `VoiceAccessError`. UI menampilkan tautan **Masuk ulang layanan suara** ke `/auth/refresh`. Navigasi GET ini wajib melalui jaringan, sehingga Cloudflare Access dapat menampilkan login email; setelah login Worker merespons 302 ke `/`. Reload biasa dapat dibalas shell PWA dari cache dan tidak cukup untuk memperbarui sesi layanan. `/api`, `/cdn-cgi/` dan `/auth/refresh` dikecualikan dari fallback navigasi service worker. Login ulang memerlukan internet; input manual pada shell yang sudah di-cache tetap tersedia.
+**Sesi akun habis:** respons redirect/401 dikenali sebagai sesi yang perlu diperbarui. Tautan **Masuk ulang layanan suara** menuju `/auth/refresh`, lalu kembali ke halaman login akun Monee pada deployment PIN akun. Cloudflare Access hanya memverifikasi email saat pendaftaran/pemulihan melalui `/auth/bootstrap`. Endpoint API dan navigasi pemulihan tidak memakai fallback service worker. Login ulang memerlukan internet; input manual lokal tetap tersedia sesuai status sesi perangkat.
 
 ## A2. STT - Groq Whisper-large-v3 melalui server terkelola
 
 - **Browser:** `transcribeAudio` di `src/core/stt/transcribe.ts` hanya mengirim audio ke endpoint tetap `/api/transcribe`; tidak memegang secret, memilih endpoint provider, atau mengirim Authorization Groq.
 - **Server:** Cloudflare Worker memanggil endpoint tetap `https://api.groq.com/openai/v1/audio/transcriptions` menggunakan secret `GROQ_API_KEY`, model `whisper-large-v3`, bahasa `id`; respons sukses ke browser hanya `{ text: string }`.
 - **Batas:** rekaman UI 30 detik, file 10 MiB; server memvalidasi multipart, MIME/ukuran, timeout dan respons provider. Batas durasi UI bukan pembuktian panjang audio dari klien yang dimodifikasi.
-- **Akses:** seluruh trafik produksi dan preview dilindungi Cloudflare Access email OTP dengan allowlist email pemilik/undangan. Worker memverifikasi JWT dengan `jose`, termasuk tanda tangan, issuer `ACCESS_TEAM_DOMAIN`, audience `ACCESS_AUD`, expiry dan subject. Konfigurasi hilang/token invalid ditolak; provider tidak dipanggil.
-- **Rate limit:** binding `AI_RATE_LIMIT`, 10 request/60 detik per subject Access terverifikasi. Ini batas perkiraan per lokasi Cloudflare, bukan pembatas biaya/kuota global yang ketat. Respons provider 429 juga ditangani. [Batas dan akurasi limiter](https://developers.cloudflare.com/workers/runtime-apis/bindings/rate-limit/).
+- **Akses:** Cloudflare Access melindungi `/auth/bootstrap` dengan allowlist email pemilik/undangan. Worker memverifikasi JWT melalui `jose` dan membuat cookie sesi Monee; endpoint AI kemudian memverifikasi sesi akun tersebut serta origin permintaan. Konfigurasi hilang atau sesi invalid ditolak; provider tidak dipanggil.
+- **Rate limit:** binding `AI_RATE_LIMIT`, 10 request/60 detik per akun dan layanan. Ini batas perkiraan per lokasi Cloudflare, bukan pembatas biaya/kuota global yang ketat. Respons provider 429 juga ditangani. [Batas dan akurasi limiter](https://developers.cloudflare.com/workers/runtime-apis/bindings/rate-limit/).
+- **Redirect provider:** gunakan `redirect: 'manual'` dan tolak respons 3xx. Runtime Workers tidak mendukung `redirect: 'error'`; mode manual menjaga key, audio, dan gambar tetap dikirim hanya ke endpoint provider yang ditetapkan.
 - **Biaya:** pemilik menanggung penggunaan akun Groq dan hosting. Kuota Groq terpisah dari Cloudflare; tidak ada janji gratis selamanya. [Limit Groq](https://console.groq.com/docs/rate-limits).
 - **Tidak ada download model**; voice membutuhkan internet dan dukungan format MediaRecorder pada perangkat yang dipakai.
 
-Alasan perubahan dari BYOK: pengguna nonteknis dapat langsung memakai voice setelah login dan persetujuan, tanpa membuka akun provider atau menyalin secret. Trade-off: pemilik mengelola akses, secret, penggunaan dan biaya, sedangkan audio melewati Worker serta Groq.
+Alasan perubahan dari BYOK: pengguna nonteknis dapat langsung memakai voice setelah login dan mengetuk mikrofon, tanpa membuka akun provider atau menyalin secret. Trade-off: pemilik mengelola akses, secret, penggunaan dan biaya, sedangkan audio melewati Worker serta Groq.
 
 ## A3. Parser — Rule-based (deterministic, offline)
 
@@ -101,15 +103,15 @@ Alasan perubahan dari BYOK: pengguna nonteknis dapat langsung memakai voice sete
 
 ---
 
-## B. STRUK v1 - persiapan OCR
+## B. STRUK v1 - OCR Google Gemini
 
-G-9a/G-9b menjadi alur input gambar dan review multi-item. Pengenalan teks otomatis belum tersedia: **belum ada model/provider, API key OCR, atau panggilan OCR nyata**. Jangan menampilkan angka/item contoh sebagai hasil pembacaan struk pengguna.
+G-9a/G-9b menjadi alur input gambar dan review multi-item. Keputusan pengguna 5 November 2026: gunakan Google AI Studio/Gemini. Browser mengirim foto yang disetujui ke `/api/receipt`; Worker memverifikasi JWT Access, membatasi request, dan memanggil `gemini-3.5-flash-lite` dengan secret `GEMINI_API_KEY`. Koneksi provider hanya terjadi di server. Respons JSON divalidasi dan dibuka sebagai draft yang harus diperiksa pengguna; input manual tetap tersedia.
 
-## B1. Alur saat provider belum dipilih
+## B1. Alur pembacaan dan review
 
 1. Buka Scan struk dari Quick-Add; pilih JPEG/PNG/WebP maksimal 10 MB melalui pemilih berkas/galeri. Browser mobile dapat menawarkan kamera; belum ada viewfinder kamera khusus.
-2. Tampilkan preview foto sementara serta status bahwa mesin pembaca belum diatur.
-3. Pengguna mengisi/mengoreksi item secara manual: nama/catatan, nominal, kategori, tanggal dan bucket.
+2. Tampilkan preview dan keterangan pengiriman ke Gemini, tanpa checkbox. **Baca otomatis** menampilkan loading yang dapat dibatalkan; foto tidak dikirim sebelum pengguna menekan tombol.
+3. Pengguna memeriksa/mengoreksi item: nama/catatan, nominal, tanggal dan bucket. Pilihan kategori dihapus dari antarmuka; ID kategori lama dipertahankan secara internal untuk kompatibilitas ledger dan backup.
 4. Tambah, koreksi atau hapus sampai 50 item, lalu periksa total dan validasi. Tombol gabung item pada rancangan belum tersedia.
 5. Konfirmasi Simpan semua item menulis seluruh batch dalam satu transaksi database atomik, tanpa undo batch. Setiap expense tepat satu bucket; kategori/bucket yang tidak valid wajib diperbaiki. Semua aturan jatah, saldo, periode terkunci dan batas integer aman tetap berlaku. Kegagalan tidak menyimpan sebagian item; retry batch identik tidak menggandakan transaksi.
 6. Tutup/reset sesi melepaskan foto sementara; foto tidak menjadi attachment transaksi atau bagian backup.
@@ -118,17 +120,17 @@ Kategori tidak mempunyai mapping kategori-ke-bucket otomatis dalam konfigurasi s
 
 ## B2. Batas provider
 
-UI capture/review dan validasi ledger dipisahkan dari fungsi pengenalan. Antarmuka provider menerima gambar sementara dan menghasilkan draft item/metadata untuk review, dengan dukungan pembatalan dan error. Provider default berstatus belum dikonfigurasi; antarmuka ini tidak berarti model sudah dipasang atau teks sudah dibaca.
+UI capture/review dan validasi ledger dipisahkan dari fungsi pengenalan. Antarmuka provider menerima gambar sementara dan menghasilkan draft item/metadata untuk review, dengan dukungan pembatalan dan error. Provider default memakai endpoint Worker pada origin sendiri. Tanpa secret server yang valid, pengguna mendapat pesan konfigurasi dan dapat melanjutkan manual.
 
 Lokasi integrasi: `src/features/ocr/provider.ts`. Kontrak `ReceiptRecognizer` pada `receipt.ts` menerima `(image: File, signal: AbortSignal)` dan menghasilkan `Promise<ReceiptResult>` dengan `items: { label: string; amount: number }[]`, serta `merchant`, `date` (YYYY-MM-DD), dan `total` opsional. Nominal adalah rupiah utuh positif. Semua keluaran provider dinormalisasi ulang sebelum masuk review. Provider tidak boleh menyimpan ledger sendiri atau mengabaikan pembatalan. Pembatalan dan hasil yang terlambat tidak mengganti draft aktif.
 
 Metadata retry di store `settings` hanya mencatat keanggotaan ID transaksi per batch; tidak mengandung foto. Metadata dan ledger ditulis atomik, tanpa versi schema baru.
 
-Pemilihan model ditunda hingga tersedia keputusan tentang akurasi struk Indonesia, latensi/perangkat, biaya, endpoint/key dan privasi. Opsi lokal maupun cloud belum dikunci. Jangan menambahkan model, key palsu, env API generik atau fallback layanan tanpa keputusan pengguna.
+Model dipilih berdasarkan [dukungan gambar dan structured output resmi](https://ai.google.dev/gemini-api/docs/models/gemini-3.5-flash-lite). Akurasi dan latensi struk Indonesia memerlukan pengujian provider nyata dengan key pemilik; pengujian tiruan hanya membuktikan alur, validasi dan penanganan kegagalan.
 
 ## B3. Privasi
 
-- Scaffold sekarang menggunakan gambar di memori lokal, tanpa upload, penyimpanan IndexedDB, atau penyertaan foto dalam export/backup.
+- Foto disimpan sementara di memori browser. Pengiriman ke Gemini melalui Worker hanya dimulai dengan tombol Baca otomatis; foto tidak masuk IndexedDB atau export/backup Monee.
 - Hanya field transaksi yang dikonfirmasi disimpan. Keluar dari alur, reset, atau penguncian sesi harus melepaskan gambar dan membatalkan proses yang belum selesai.
-- Jika model cloud dipilih kelak, jelaskan penyedia, data yang dikirim dan retensi, minta persetujuan sebelum upload, lalu tinjau endpoint, penyimpanan key, CSP serta pembatalannya.
-- Klaim seluruh OCR pasti lokal atau gratis belum dapat dibuat. Tidak ada key OCR yang perlu diisi pada hosting saat ini.
+- UI menyebut Google Gemini dan menautkan ketentuannya. Paket gratis dapat menggunakan input untuk peningkatan model dan peninjauan manusia; pengguna perlu menutupi informasi pribadi sebelum upload. Ketentuan dan retensi Google tidak ditentukan oleh kebijakan penyimpanan Monee.
+- `GEMINI_API_KEY` hanya secret hosting. CSP browser tetap membatasi koneksi ke origin Monee; browser tidak menerima key atau menghubungi Gemini langsung.

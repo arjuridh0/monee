@@ -18,11 +18,11 @@ beforeEach(async () => {
   await useMoneeStore.getState().load()
 })
 afterEach(() => { cleanup(); vi.useRealTimers(); vi.unstubAllGlobals() })
-it('orders default categories and selects a usable bucket when the preferred bucket is full', async () => {
+it('uses buckets without category selection and selects a usable bucket when the preferred bucket is full', async () => {
   await useMoneeStore.getState().addTransaction({ id: 'fill-needs', type: 'expense', amount: 400000, categoryId: 'cat-makan', bucketId: 'bucket-needs', date: getToday(), createdAt: 2, updatedAt: 2 })
   render(<QuickAddDialog open onClose={() => {}} />)
-  const categoryButtons = within(screen.getByRole('group', { name: 'Kategori' })).getAllByRole('button')
-  expect(categoryButtons.map(button => button.textContent)).toEqual(['Makan', 'Minum', 'Transport', 'Pulsa/Data', 'Belanja', 'Hiburan', 'Sedekah', 'Tabungan', 'Edukasi', 'Lainnya'])
+  expect(screen.queryByRole('group', { name: 'Kategori' })).not.toBeInTheDocument()
+  expect(within(screen.getByRole('group', { name: 'Bucket' })).getAllByRole('button')).toHaveLength(5)
   expect(screen.getByRole('button', { name: /Kebutuhan Pokok/ })).toBeDisabled()
   expect(screen.getByRole('button', { name: /Pulsa\/Transport/ })).toHaveAttribute('aria-pressed', 'true')
 })
@@ -38,10 +38,23 @@ it('keeps the sheet open and reverses a saved expense through the real persisten
   expect(useMoneeStore.getState().transactions.filter(item => item.type === 'expense' && !item.deleted)).toHaveLength(0)
   expect(close).not.toHaveBeenCalled()
 })
+it('does not silently turn an expense into a savings deposit when all spending buckets are full', async () => {
+  const state = useMoneeStore.getState()
+  for (const bucket of state.buckets.filter(item => !item.isSavings)) {
+    await state.addTransaction({ id: `fill-${bucket.id}`, type: 'expense', amount: bucket.allocPercent * 10000,
+      categoryId: 'cat-lain-exp', bucketId: bucket.id, date: getToday(), createdAt: 2, updatedAt: 2 })
+  }
+  render(<QuickAddDialog open onClose={() => {}} />)
+  expect(screen.getByRole('button', { name: 'Tabungan', exact: true })).toHaveAttribute('aria-pressed', 'false')
+  fireEvent.click(screen.getByRole('button', { name: '5rb' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Simpan' }))
+  expect(await screen.findByRole('alert')).toHaveTextContent('Pilih bucket pengeluaran.')
+  expect(useMoneeStore.getState().transactions.filter(item => item.type === 'savings_deposit')).toHaveLength(0)
+})
 it('validates before arming, disables the known invalid draft, and allows a corrected retry', async () => {
   render(<QuickAddDialog open onClose={() => {}} />)
   fireEvent.click(screen.getByRole('button', { name: 'Simpan' }))
-  expect(await screen.findByRole('alert')).toHaveTextContent('ERR_AMOUNT_INVALID')
+  expect(await screen.findByRole('alert')).toHaveTextContent('Nominal harus lebih dari 0 rupiah utuh.')
   expect(screen.queryByRole('button', { name: 'Batal' })).not.toBeInTheDocument()
   expect(screen.getByRole('button', { name: 'Simpan' })).toBeDisabled()
   fireEvent.click(screen.getByRole('button', { name: '5rb' }))
@@ -80,7 +93,7 @@ it('never shows deletion success when Allocation is spent during the countdown',
   await act(async () => { await useMoneeStore.getState().addTransaction({ id: 'spend-deposit', type: 'savings_expense', note: 'Pakai dana', savingsSource: 'allocation', amount: 10000, date: getToday(), createdAt: 3, updatedAt: 3 }) })
   await waitFor(() => expect(document.querySelector('.rb-fuse')).toHaveAttribute('data-phase', 'idle'), { timeout: 6000 })
   expect(screen.queryByRole('button', { name: 'Transaksi dihapus' })).not.toBeInTheDocument()
-  expect(screen.getAllByRole('alert')[0]).toHaveTextContent('ERR_KOMPARTEMEN_KURANG')
+  expect(screen.getAllByRole('alert')[0]).toHaveTextContent('Dana tabungan sudah terpakai.')
   expect((await transactionRepo.getById(await openDatabase(), 'deposit'))?.deleted).not.toBe(true)
 }, 12000)
 

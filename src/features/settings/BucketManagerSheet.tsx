@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useId, useState } from 'react'
 import { Button, TextField, Toggle } from '@/components/ui/controls'
 import { Dialog } from '@/components/ui/Dialog'
 import { InlineError } from '@/components/ui/feedback'
@@ -7,6 +7,7 @@ import type { Bucket } from '@/core/finance/types'
 import { useMoneeStore } from '@/store'
 
 export function BucketManagerSheet({ onClose }: { onClose: () => void }) {
+  const formId = useId()
   const [baseline] = useState(() => useMoneeStore.getState().buckets.map(item => ({ ...item })))
   const [buckets, setBuckets] = useState(() => [...baseline].sort((a, b) => a.sortOrder - b.sortOrder))
   const [error, setError] = useState('')
@@ -16,15 +17,15 @@ export function BucketManagerSheet({ onClose }: { onClose: () => void }) {
     setBuckets(items => items.map(item => item.id === id ? { ...item, ...patch } : item))
   }
   async function save(event: React.FormEvent) {
-    event.preventDefault(); setBusy(true); setError('')
+    event.preventDefault(); if (busy) return; setBusy(true); setError('')
     try {
       await useMoneeStore.getState().saveBuckets(buckets.map((item, index) => ({ ...item, sortOrder: index })), baseline)
       onClose()
     } catch (cause) { setError(cause instanceof Error ? cause.message : 'Bucket belum bisa disimpan.') }
     finally { setBusy(false) }
   }
-  return <Dialog open sheet title="Kelola Bucket" onClose={() => { if (!busy) onClose() }}>
-    <form className="settings-form bucket-manager" onSubmit={event => { void save(event) }}>
+  return <Dialog open sheet title="Kelola Bucket" onClose={() => { if (!busy) onClose() }} footer={<Button type="submit" form={formId} loading={busy} disabled={Math.abs(total - 100) > 1e-8}>Simpan bucket</Button>}>
+    <form id={formId} className="settings-form bucket-manager" onSubmit={event => { void save(event) }}>
       <p className="ui-helper">Atur nama, tampilan, dan jatah. Bucket yang sudah dipakai riwayat tidak dapat dihapus. Perubahan alokasi berlaku untuk periode terbuka.</p>
       {buckets.map((bucket, index) => <fieldset key={bucket.id} disabled={busy} className="bucket-manager-item">
         <legend>Bucket {index + 1}{bucket.isSavings ? ' · Tabungan' : ''}</legend>
@@ -51,7 +52,6 @@ export function BucketManagerSheet({ onClose }: { onClose: () => void }) {
       }])}>Tambah bucket</Button>
       <p role="status">Total alokasi: {total.toLocaleString('id-ID', { maximumFractionDigits: 2 })}% dari 100%</p>
       {error && <InlineError>{error}</InlineError>}
-      <Button type="submit" loading={busy} disabled={Math.abs(total - 100) > 1e-8}>Simpan bucket</Button>
     </form>
   </Dialog>
 }

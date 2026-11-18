@@ -94,6 +94,7 @@ describe('store announcements', () => {
     })
     await transactionRepo.save(db, { id: 'income', type: 'income', amount: 1_000_000, date: getToday(), createdAt: 1, updatedAt: 1 })
     await useMoneeStore.getState().load()
+    await useMoneeStore.getState().unlockProfile(useMoneeStore.getState().profile!)
   })
 
   afterEach(() => {

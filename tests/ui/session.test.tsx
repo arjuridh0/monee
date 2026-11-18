@@ -4,6 +4,7 @@ import { IDBFactory } from 'fake-indexeddb'
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
+import type { ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { AppShell } from '@/app/AppShell'
 import { useMoneeStore } from '@/store'
@@ -12,14 +13,22 @@ import { DEFAULT_BUCKETS, bucketRepo, recurringRepo, seedDefaultData, settingsRe
 import { getToday } from '@/core/finance/period'
 
 vi.mock('@/features/mascot/MascotCanvas', () => ({ MascotCanvas: () => <span>Teman Monee</span> }))
+vi.mock('@/features/auth/AccountGate', () => ({ AccountGate: ({ children }: { children: ReactNode }) => children }))
 beforeEach(() => {
+  vi.stubEnv('DEV', true)
   vi.stubGlobal('crypto', webcrypto)
   vi.stubGlobal('indexedDB', new IDBFactory())
   vi.stubGlobal('scrollTo', vi.fn())
   resetDbSingleton()
   useMoneeStore.setState(useMoneeStore.getInitialState(), true)
 })
-afterEach(() => { cleanup(); vi.unstubAllGlobals(); resetDbSingleton() })
+afterEach(async () => {
+  cleanup()
+  // Let an effect-triggered ledger read finish before replacing fake IndexedDB.
+  // Otherwise the next test can close its backing database mid-read.
+  await useMoneeStore.getState().load().catch(() => undefined)
+  vi.unstubAllEnvs(); vi.unstubAllGlobals(); resetDbSingleton()
+})
 const mount = (path = '/') => render(<MemoryRouter initialEntries={[path]} future={{ v7_startTransition: true, v7_relativeSplatPath: true }}><AppShell /></MemoryRouter>)
 
 async function startWizard(income: boolean) {
@@ -43,14 +52,24 @@ async function startWizard(income: boolean) {
 }
 
 describe('first-run and session gates', () => {
+  it('does not offer the device lock when the profile has no device PIN', async () => {
+    await useMoneeStore.getState().finishOnboarding({
+      name: 'Account PIN only', mascotId: 'mochi', buckets: DEFAULT_BUCKETS.map(bucket => ({ ...bucket })),
+    })
+    mount()
+    await screen.findByRole('heading', { name: 'Belum ada pemasukan bulan ini' })
+    expect(screen.queryByRole('button', { name: 'Kunci Monee' })).not.toBeInTheDocument()
+    expect(useMoneeStore.getState().isLocked).toBe(false)
+  })
+
   it('restores default categories when onboarding starts after a data reset', async () => {
     useMoneeStore.setState({ ...useMoneeStore.getInitialState(), isLoaded: true, isLocked: false }, true)
     mount('/onboarding')
     await screen.findByLabelText('Nama panggilan')
     fireEvent.change(screen.getByLabelText('Nama panggilan'), { target: { value: 'Mulai lagi' } })
     await userEvent.click(screen.getByRole('button', { name: 'Lanjut' }))
-    const select = await screen.findByLabelText('Kategori pemasukan')
-    await waitFor(() => expect(within(select).getAllByRole('option')).toHaveLength(4))
+    await screen.findByLabelText('Nominal pemasukan (Rp)')
+    await waitFor(() => expect(useMoneeStore.getState().categories.filter(item => item.type === 'income')).toHaveLength(4))
     fireEvent.change(screen.getByLabelText('Nominal pemasukan (Rp)'), { target: { value: '1000000' } })
     expect(screen.getByRole('button', { name: 'Catat & lanjut' })).toBeEnabled()
   })
@@ -60,6 +79,7 @@ describe('first-run and session gates', () => {
     await startWizard(false)
     await screen.findByRole('heading', { name: 'Belum ada pemasukan bulan ini' })
     expect(screen.getByRole('region', { name: 'Transaksi terakhir' })).toHaveTextContent('Belum ada transaksi bulan ini')
+    expect(screen.getAllByRole('button', { name: 'Tambah pemasukan', exact: true })).toHaveLength(1)
     expect(await transactionRepo.getAll(await openDatabase())).toHaveLength(0)
     expect(useMoneeStore.getState().isLocked).toBe(false)
     view.unmount()
@@ -78,8 +98,9 @@ describe('first-run and session gates', () => {
     mount()
     await startWizard(true)
     await screen.findByRole('heading', { name: 'Beranda' })
+    expect(screen.getByRole('button', { name: 'Kunci Monee' })).toBeVisible()
     const recentTransactions = screen.getByRole('list', { name: 'Daftar transaksi terakhir' })
-    expect(within(recentTransactions).getByText('Bonus')).toBeInTheDocument()
+    expect(within(recentTransactions).getByText('Pemasukan')).toBeInTheDocument()
     expect(within(recentTransactions).getAllByRole('listitem')).toHaveLength(1)
     expect(screen.getByLabelText('Saldo periode')).toHaveTextContent('Rp1.000.000')
     expect(screen.getByRole('region', { name: 'Ringkasan keuangan' })).toBeInTheDocument()
@@ -162,6 +183,7 @@ describe('first-run and session gates', () => {
     await startWizard(true)
     await screen.findByRole('heading', { name: 'Beranda' })
     await userEvent.click(screen.getByRole('button', { name: 'Tambah transaksi' }))
+    await userEvent.click(await screen.findByRole('button', { name: 'Ketik manual' }))
     const dialog = await screen.findByRole('dialog', { name: 'Tambah transaksi' })
     expect(dialog).toBeVisible()
     expect(dialog.contains(document.activeElement)).toBe(true)
@@ -172,11 +194,12 @@ describe('first-run and session gates', () => {
     await startWizard(true)
     await screen.findByRole('heading', { name: 'Beranda' })
     await userEvent.click(screen.getByRole('button', { name: 'Tambah transaksi' }))
+    await userEvent.click(await screen.findByRole('button', { name: 'Ketik manual' }))
     await screen.findByRole('dialog', { name: 'Tambah transaksi' })
     const amount = screen.getByLabelText('Nominal (Rp)')
     fireEvent.change(amount, { target: { value: '450000' } })
     await userEvent.click(screen.getByRole('button', { name: 'Simpan' }))
-    expect(await screen.findByRole('alert')).toHaveTextContent('ERR_JATAH_HABIS')
+    expect(await screen.findByRole('alert')).toHaveTextContent('Jatah Kebutuhan Pokok tinggal Rp 400.000.')
     expect(amount).toHaveValue(450000)
     expect(screen.getByRole('dialog', { name: 'Tambah transaksi' })).toBeVisible()
 
@@ -187,7 +210,7 @@ describe('first-run and session gates', () => {
     })
     fireEvent.change(amount, { target: { value: '1100000' } })
     await userEvent.click(screen.getByRole('button', { name: 'Simpan' }))
-    expect(await screen.findByRole('alert')).toHaveTextContent('ERR_SALDO_KURANG')
+    expect(await screen.findByRole('alert')).toHaveTextContent('Saldo periode tinggal Rp 1.000.000.')
     expect(amount).toHaveValue(1100000)
     expect(await transactionRepo.getAll(await openDatabase())).toHaveLength(1)
   }, 25000)
@@ -197,9 +220,10 @@ describe('first-run and session gates', () => {
     await startWizard(true)
     await screen.findByRole('heading', { name: 'Beranda' })
     await userEvent.click(screen.getByRole('button', { name: 'Tambah transaksi' }))
+    await userEvent.click(await screen.findByRole('button', { name: 'Ketik manual' }))
     await screen.findByRole('dialog', { name: 'Tambah transaksi' })
     await userEvent.click(screen.getByRole('radio', { name: 'Pemasukan' }))
-    await userEvent.click(within(screen.getByRole('group', { name: 'Kategori' })).getByRole('button', { name: 'Gaji' }))
+    expect(screen.queryByRole('group', { name: 'Kategori' })).not.toBeInTheDocument()
     fireEvent.change(screen.getByLabelText('Nominal (Rp)'), { target: { value: '250000' } })
     fireEvent.change(screen.getByLabelText('Catatan (opsional)'), { target: { value: 'Pekerjaan sampingan' } })
     await userEvent.click(screen.getByRole('button', { name: 'Simpan' }))
@@ -211,19 +235,20 @@ describe('first-run and session gates', () => {
     })
   }, 25000)
 
-  it('turns the Tabungan expense category into a savings deposit', async () => {
+  it('turns the Tabungan bucket into a savings deposit', async () => {
     mount()
     await startWizard(true)
     await screen.findByRole('heading', { name: 'Beranda' })
     await userEvent.click(screen.getByRole('button', { name: 'Tambah transaksi' }))
+    await userEvent.click(await screen.findByRole('button', { name: 'Ketik manual' }))
     await screen.findByRole('dialog', { name: 'Tambah transaksi' })
-    await userEvent.click(within(screen.getByRole('group', { name: 'Kategori' })).getByRole('button', { name: 'Tabungan' }))
-    expect(screen.queryByLabelText('Bucket')).not.toBeInTheDocument()
+    await userEvent.click(within(screen.getByRole('group', { name: 'Bucket' })).getByRole('button', { name: 'Tabungan' }))
+    expect(within(screen.getByRole('group', { name: 'Bucket' })).getByRole('button', { name: 'Tabungan' })).toHaveAttribute('aria-pressed', 'true')
     expect(screen.getByText(/masuk ke Tabungan/i)).toBeInTheDocument()
     const amount = screen.getByLabelText('Nominal (Rp)')
     fireEvent.change(amount, { target: { value: '1100000' } })
     await userEvent.click(screen.getByRole('button', { name: 'Simpan' }))
-    expect(await screen.findByRole('alert')).toHaveTextContent('ERR_SALDO_KURANG')
+    expect(await screen.findByRole('alert')).toHaveTextContent('Saldo periode tinggal Rp 1.000.000.')
     expect(amount).toHaveValue(1100000)
     fireEvent.change(amount, { target: { value: '700000' } })
     await userEvent.click(screen.getByRole('button', { name: 'Simpan' }))
@@ -254,9 +279,9 @@ describe('first-run and session gates', () => {
     expect(within(screen.getByRole('region', { name: 'Daftar riwayat' })).getByText('Makan siang')).toBeInTheDocument()
     await userEvent.selectOptions(screen.getByLabelText('Filter tipe'), 'income')
     expect(within(screen.getByRole('region', { name: 'Daftar riwayat' })).queryByText('Makan siang')).not.toBeInTheDocument()
-    expect(within(screen.getByRole('region', { name: 'Daftar riwayat' })).getByText('Bonus')).toBeInTheDocument()
+    expect(within(screen.getByRole('region', { name: 'Daftar riwayat' })).getByText('Pemasukan')).toBeInTheDocument()
     await userEvent.selectOptions(screen.getByLabelText('Filter tipe'), 'all')
-    await userEvent.selectOptions(screen.getByLabelText('Filter kategori'), 'cat-makan')
+    await userEvent.selectOptions(screen.getByLabelText('Filter bucket'), 'bucket-needs')
     expect(within(screen.getByRole('region', { name: 'Daftar riwayat' })).getByText('Makan siang')).toBeInTheDocument()
     await userEvent.type(screen.getByLabelText('Nominal minimum'), '200000')
     expect(within(screen.getByRole('region', { name: 'Daftar riwayat' })).queryByText('Makan siang')).not.toBeInTheDocument()
@@ -284,7 +309,7 @@ describe('first-run and session gates', () => {
     const editAmount = screen.getByLabelText('Nominal transaksi')
     fireEvent.change(editAmount, { target: { value: '450000' } })
     await userEvent.click(screen.getByRole('button', { name: 'Simpan perubahan' }))
-    expect(await screen.findByRole('alert')).toHaveTextContent('ERR_JATAH_HABIS')
+    expect(await screen.findByRole('alert')).toHaveTextContent('Jatah Kebutuhan Pokok tinggal Rp 400.000.')
     expect(await transactionRepo.getById(await openDatabase(), 'editable-expense')).toMatchObject({ amount: 100000 })
     fireEvent.change(editAmount, { target: { value: '150000' } })
     await userEvent.click(screen.getByRole('button', { name: 'Simpan perubahan' }))
@@ -343,12 +368,12 @@ describe('first-run and session gates', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Edit transaksi' }))
     fireEvent.change(screen.getByLabelText('Nominal transaksi'), { target: { value: '50000' } })
     await userEvent.click(screen.getByRole('button', { name: 'Simpan perubahan' }))
-    expect(await screen.findByRole('alert')).toHaveTextContent('ERR_KOMPARTEMEN_KURANG')
+    expect(await screen.findByRole('alert')).toHaveTextContent('Koreksi ini membuat saldo kompartemen tabungan negatif.')
     expect(await transactionRepo.getById(await openDatabase(), 'allocation-deposit')).toMatchObject({ amount: 100000 })
     await userEvent.click(screen.getByRole('button', { name: 'Batal' }))
     await userEvent.click(screen.getByRole('button', { name: 'Hapus transaksi' }))
     await userEvent.click(screen.getByRole('button', { name: 'Ya, hapus' }))
-    expect(await screen.findByRole('alert')).toHaveTextContent('ERR_KOMPARTEMEN_KURANG')
+    expect(await screen.findByRole('alert')).toHaveTextContent('Dana tabungan sudah terpakai.')
     expect(await transactionRepo.getById(await openDatabase(), 'allocation-deposit')).toMatchObject({ deleted: false })
   }, 25000)
 

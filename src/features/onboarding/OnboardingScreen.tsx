@@ -1,5 +1,6 @@
 import { lazy, Suspense, useEffect, useRef, useState } from 'react'
-import { ArrowLeft, Leaf, ShieldCheck } from 'lucide-react'
+import { ArrowLeft, ShieldCheck } from 'lucide-react'
+import { Brand } from '@/components/ui/Brand'
 import { Button } from '@/components/ui/controls'
 import { InlineError, Skeleton } from '@/components/ui/feedback'
 import { openDatabase } from '@/core/db/migrations'
@@ -12,6 +13,7 @@ import { NameStep } from './NameStep'
 import { IncomeStep, type FirstIncome } from './IncomeStep'
 import { AllocationStep } from './AllocationStep'
 import { PinStep } from './PinStep'
+import { useAccount } from '@/features/auth/AccountContext'
 import './onboarding.css'
 
 const MascotCarousel = lazy(() => import('@/features/mascot/MascotCarousel').then(module => ({ default: module.MascotCarousel })))
@@ -35,6 +37,7 @@ function restoreDraft(value: Partial<Draft> | undefined): Draft {
 }
 
 export function OnboardingScreen() {
+  const { pinAuth } = useAccount()
   const categories = useMoneeStore(state => state.categories)
   const finishOnboarding = useMoneeStore(state => state.finishOnboarding)
   const [draft, setDraft] = useState<Draft>(freshDraft)
@@ -76,12 +79,12 @@ export function OnboardingScreen() {
     } catch { setError('Langkahmu belum tersimpan. Coba lanjut lagi, ya.'); return false }
     finally { inFlight.current = false; setBusy(false) }
   }
-  async function finish(pin: string) {
+  async function finish(pin?: string) {
     if (inFlight.current) return
     inFlight.current = true
     setBusy(true); setError('')
     try {
-      await finishOnboarding({ name: draft.name, buckets: draft.buckets, mascotId: draft.mascotId, pin,
+      await finishOnboarding({ name: draft.name, buckets: draft.buckets, mascotId: draft.mascotId, ...(pin ? { pin } : {}),
         ...(draft.income ? { income: draft.income } : {}) })
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Pengaturan belum tersimpan. Coba lagi, ya.')
@@ -89,11 +92,11 @@ export function OnboardingScreen() {
   }
 
   return <section className="onboarding" aria-label="Pengaturan pertama Monee">
-    <div className="onboarding-top"><span className="onboarding-brand"><Leaf size={22} aria-hidden="true" /> monee</span>
-      <span className="onboarding-private"><ShieldCheck size={14} aria-hidden="true" /> Milikmu, di perangkatmu</span></div>
+    <div className="onboarding-top"><Brand className="onboarding-brand" />
+      <span className="onboarding-private"><ShieldCheck size={14} aria-hidden="true" /> Akunmu, tersinkron antarperangkat</span></div>
     {ready ? <>
-      <div className="onboarding-progress"><p>Langkah {draft.step + 1} dari 5 <span>{STEPS[draft.step]}</span></p>
-        <ol aria-label="Langkah pengaturan">{STEPS.map((step, index) => <li key={step} aria-current={index === draft.step ? 'step' : undefined}
+      <div className="onboarding-progress"><p>Langkah {Math.min(draft.step + 1, pinAuth ? 4 : 5)} dari {pinAuth ? 4 : 5} <span>{STEPS[Math.min(draft.step, pinAuth ? 3 : 4)]}</span></p>
+        <ol aria-label="Langkah pengaturan">{(pinAuth ? STEPS.slice(0, 4) : STEPS).map((step, index) => <li key={step} aria-current={index === draft.step ? 'step' : undefined}
           className={index <= draft.step ? 'is-complete' : ''}><span className="sr-only">{step}</span></li>)}</ol>
       </div>
       <div className="onboarding-back">{draft.step > 0 && <Button variant="ghost" disabled={busy}
@@ -102,13 +105,17 @@ export function OnboardingScreen() {
         {draft.step === 0 && <NameStep name={draft.name} busy={busy} onNext={name => { void advance({ name }) }} />}
         {draft.step === 1 && <IncomeStep income={draft.income} categories={categories} busy={busy} onNext={income => { void advance({ income }) }} />}
         {draft.step === 2 && <AllocationStep buckets={draft.buckets} busy={busy} onNext={buckets => { void advance({ buckets }) }} />}
-        {draft.step === 3 && <div className="onboarding-step"><header className="onboarding-heading"><h1>Pilih teman perjalananmu</h1>
+        {(draft.step === 3 || (pinAuth && draft.step === 4)) && <div className="onboarding-step"><header className="onboarding-heading"><h1>Pilih teman perjalananmu</h1>
           <p>Tiga teman, tiga warna. Mana yang paling kamu banget?</p></header>
           <Suspense fallback={<Skeleton label="Menyiapkan temanmu" />}><MascotCarousel initialIndex={mascotIndex(draft.mascotId)} applying={busy}
             onApply={async mascotId => {
+              if (pinAuth) {
+                await finishOnboarding({ name: draft.name, buckets: draft.buckets, mascotId, ...(draft.income ? { income: draft.income } : {}) })
+                return
+              }
               if (!await advance({ mascotId })) throw new Error('Langkahmu belum tersimpan.')
             }} /></Suspense></div>}
-        {draft.step === 4 && <PinStep onFinish={pin => { void finish(pin) }} busy={busy} />}
+        {draft.step === 4 && !pinAuth && <PinStep onFinish={pin => { void finish(pin) }} busy={busy} />}
       </div>
     </> : !error && <Skeleton label="Menyiapkan pengaturan" />}
     {error && <div className="onboarding-load-error"><InlineError>{error}</InlineError>

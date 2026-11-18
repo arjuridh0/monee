@@ -35,6 +35,19 @@ afterEach(() => {
 })
 
 describe('changePin', () => {
+  it('disables an optional device lock only after verifying its current PIN', async () => {
+    const db = await openDatabase(), profile = await seedProfile()
+    await expect(changePin(db, { currentPin: '999999', newPin: '', remove: true, expectedPinHash: profile.pinHash })).rejects.toThrow('PIN sekarang belum cocok.')
+    const result = await changePin(db, { currentPin: CURRENT_PIN, newPin: '', remove: true, expectedPinHash: profile.pinHash })
+    expect(result).toMatchObject({ pinHash: '', pinSalt: '' })
+  })
+  it('lets a profile without a PIN opt into a device PIN', async () => {
+    const db = await openDatabase()
+    const current = { ...await seedProfile(), pinHash: '', pinSalt: '' }
+    await profileRepo.save(db, current)
+    const updated = await changePin(db, { currentPin: '', newPin: NEXT_PIN, expectedPinHash: '' })
+    expect(await verifyPin(NEXT_PIN, updated.pinHash, updated.pinSalt)).toBe(true)
+  })
   it('stores a fresh salt and hash, verifies the new PIN, and clears the lockout', async () => {
     const profile = await seedProfile()
     const db = await openDatabase()

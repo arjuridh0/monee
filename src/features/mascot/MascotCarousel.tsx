@@ -1,21 +1,17 @@
 import {
-  useCallback, useEffect, useRef, useState,
-  type CSSProperties,
-  type KeyboardEvent as ReactKeyboardEvent,
-  type PointerEvent as ReactPointerEvent,
+  useCallback, useEffect, useId, useRef, useState,
+  type CSSProperties, type KeyboardEvent, type PointerEvent,
 } from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { Button } from '@/components/ui/controls'
 import type { MascotId } from '@/core/finance/types'
 import { MASCOT_THEMES, applyMascotTheme } from '@/theme/mascot-themes'
-import { cardMotion, cardStep, clamp, nearestIndex, snapTarget } from './carousel-math'
-import { MASCOT_OPTIONS, type MascotOption } from './mascot-options'
-import { canRenderMascotSnapshot, getMascotSnapshot, retainMascotSnapshots } from './model-snapshot'
+import { nearestIndex, swipeDirection } from './carousel-math'
+import { MASCOT_OPTIONS } from './mascot-options'
 import { MascotCanvas } from './MascotCanvas'
 import './mascot-carousel.css'
 
 const COUNT = MASCOT_OPTIONS.length
-const EDGE_OVERSCROLL = 0.4
 
 interface MascotCarouselProps {
   initialIndex?: number
@@ -23,405 +19,216 @@ interface MascotCarouselProps {
   onApply: (id: MascotId) => void | Promise<void>
 }
 
-function mascotVars(option: MascotOption): CSSProperties {
-  return {
-    '--m-accent': option.accent,
-    '--m-accent-vivid': option.accentVivid,
-    '--m-soft': option.soft,
-    '--m-ink': option.ink,
-    '--m-bg': option.bgTone,
-  } as CSSProperties
-}
-
 export function MascotCarousel({ initialIndex = 0, applying = false, onApply }: MascotCarouselProps) {
-  const startIndex = clamp(initialIndex, 0, COUNT - 1)
-  const [activeIndex, setActiveIndex] = useState(startIndex)
-  const [dragging, setDragging] = useState(false)
-  const [reducedMotion, setReducedMotion] = useState(() => window.matchMedia('(prefers-reduced-motion: reduce)').matches)
-  const [hidden, setHidden] = useState(document.hidden)
-  const [snapshots, setSnapshots] = useState<Partial<Record<MascotId, string>>>({})
-  const [failed, setFailed] = useState<Partial<Record<MascotId, boolean>>>({})
-
+  const [{ index: activeIndex, previousIndex }, setSelection] = useState(() => {
+    const index = nearestIndex(initialIndex, COUNT)
+    return { index, previousIndex: index }
+  })
+  const [saving, setSaving] = useState(false)
   const stageRef = useRef<HTMLDivElement>(null)
-  const cardRefs = useRef<(HTMLDivElement | null)[]>([])
-  const innerRefs = useRef<(HTMLDivElement | null)[]>([])
-  const positionRef = useRef(startIndex)
-  const targetRef = useRef(startIndex)
-  const velocityRef = useRef(0)
-  const activeRef = useRef(startIndex)
-  const lastFramePosRef = useRef(startIndex)
-  const lastTimeRef = useRef(0)
+  const pendingRef = useRef(false)
   const mountedRef = useRef(true)
-  const loadedRef = useRef<Partial<Record<MascotId, string>>>({})
-  const dragRef = useRef({ active: false, lastX: 0, distance: 0 })
-  const wheelRef = useRef({ active: false, timer: 0 })
-  const wakeRef = useRef<() => void>(() => undefined)
-  const appliedRef = useRef(false)
-  const initialThemeRef = useRef<MascotId>(MASCOT_OPTIONS[clamp(initialIndex, 0, COUNT - 1)].id)
-
+  const busy = applying || saving
+  const busyRef = useRef(busy)
+  busyRef.current = busy
+  const committedThemeRef = useRef(MASCOT_OPTIONS[nearestIndex(initialIndex, COUNT)].id)
+  const dragRef = useRef<{ id: number; x: number; y: number } | null>(null)
+  const suppressClickRef = useRef(false)
+  const wheelRef = useRef({ total: 0, moved: false, timer: 0 })
+  const id = useId()
+  const optionId = (mascot: MascotId) => `${id}-mascot-${mascot}`
   const active = MASCOT_OPTIONS[activeIndex]
 
+  useEffect(() => { applyMascotTheme(active.id) }, [active.id])
   useEffect(() => {
     mountedRef.current = true
-    const release = retainMascotSnapshots()
-    return () => { mountedRef.current = false; release() }
-  }, [])
-
-  // Swiping previews the theme; Apply commits it, dismissal restores the previous one.
-  useEffect(() => { applyMascotTheme(active.id) }, [active.id])
-  useEffect(() => () => {
-    if (!appliedRef.current) applyMascotTheme(initialThemeRef.current)
-  }, [])
-
-  useEffect(() => {
-    const query = window.matchMedia('(prefers-reduced-motion: reduce)')
-    const sync = () => setReducedMotion(query.matches)
-    sync()
-    query.addEventListener?.('change', sync)
-    return () => query.removeEventListener?.('change', sync)
-  }, [])
-
-  const loadSnapshot = useCallback((id: MascotId) => {
-    if (loadedRef.current[id]) return
-    if (!canRenderMascotSnapshot()) {
-      setFailed((current) => current[id] ? current : { ...current, [id]: true })
-      return
-    }
-    getMascotSnapshot(id)
-      .then((source) => {
-        if (!mountedRef.current) return
-        loadedRef.current[id] = source
-        setSnapshots((current) => current[id] ? current : { ...current, [id]: source })
-      })
-      .catch(() => {
-        if (!mountedRef.current) return
-        setFailed((current) => current[id] ? current : { ...current, [id]: true })
-      })
-  }, [])
-
-  useEffect(() => {
-    if (!reducedMotion && !hidden) loadSnapshot(active.id)
-  }, [active.id, loadSnapshot, reducedMotion, hidden])
-
-  const applyActive = useCallback(async (id: MascotId) => {
-    try {
-      await onApply(id)
-      appliedRef.current = true
-    } catch {
-      // The host renders the persistence error; preview stays until dismissal.
-    }
-  }, [onApply])
-
-  useEffect(() => {
-    let frame = 0
-    const schedule = () => {
-      if (!frame && !document.hidden && !reducedMotion) frame = requestAnimationFrame(loop)
-    }
-    const loop = (time: number) => {
-      frame = 0
-      const dt = lastTimeRef.current ? Math.min(48, time - lastTimeRef.current) : 16.67
-      lastTimeRef.current = time
-
-      if (!dragRef.current.active && !wheelRef.current.active) {
-        if (reducedMotion) {
-          positionRef.current = targetRef.current
-        } else {
-          const factor = 1 - Math.pow(1 - 0.17, dt / 16.67)
-          positionRef.current += (targetRef.current - positionRef.current) * factor
-          if (Math.abs(targetRef.current - positionRef.current) < 0.001) {
-            positionRef.current = targetRef.current
-          }
-        }
-      }
-
-      const step = cardStep(cardRefs.current[0]?.offsetWidth ?? 280)
-      const speed = Math.abs(positionRef.current - lastFramePosRef.current)
-      const blur = reducedMotion ? 0 : Math.min(7, speed * step * 0.075)
-
-      for (let index = 0; index < COUNT; index += 1) {
-        const node = cardRefs.current[index]
-        if (!node) continue
-        if (reducedMotion) {
-          node.style.transform = ''; node.style.opacity = ''; node.style.zIndex = ''
-          const inner = innerRefs.current[index]
-          if (inner) inner.style.filter = ''
-          continue
-        }
-        const motion = cardMotion(index - positionRef.current)
-        node.style.transform =
-          `translate3d(${motion.offset * step}px, 0, ${motion.depth}px) ` +
-          `rotateY(${motion.rotateY}deg) scale(${motion.scale})`
-        node.style.opacity = String(motion.opacity)
-        node.style.zIndex = String(100 - Math.round(Math.min(Math.abs(motion.offset), 3) * 10))
-        const inner = innerRefs.current[index]
-        if (inner) inner.style.filter = blur > 0.15 ? `blur(${blur.toFixed(2)}px)` : ''
-      }
-      lastFramePosRef.current = positionRef.current
-
-      const next = nearestIndex(positionRef.current, COUNT)
-      if (next !== activeRef.current) {
-        activeRef.current = next
-        setActiveIndex(next)
-      }
-      if (Math.abs(positionRef.current - targetRef.current) > 0.001
-        && !dragRef.current.active && !wheelRef.current.active) schedule()
-    }
-    wakeRef.current = () => {
-      if (reducedMotion) {
-        const next = nearestIndex(targetRef.current, COUNT)
-        positionRef.current = next
-        activeRef.current = next
-        setActiveIndex(next)
-      } else schedule()
-    }
-    const visibility = () => {
-      setHidden(document.hidden)
-      if (document.hidden) { cancelAnimationFrame(frame); frame = 0 }
-      else { lastTimeRef.current = 0; wakeRef.current() }
-    }
-    const resize = () => { lastTimeRef.current = 0; wakeRef.current() }
-    document.addEventListener('visibilitychange', visibility)
-    window.addEventListener('resize', resize)
-    if (reducedMotion) loop(0)
-    else schedule()
     return () => {
-      cancelAnimationFrame(frame)
-      document.removeEventListener('visibilitychange', visibility)
-      window.removeEventListener('resize', resize)
-      wakeRef.current = () => undefined
+      mountedRef.current = false
+      applyMascotTheme(committedThemeRef.current)
     }
-  }, [reducedMotion])
+  }, [])
 
+  const goTo = useCallback((index: number) => {
+    if (!busyRef.current && !pendingRef.current) {
+      const next = nearestIndex(index, COUNT)
+      setSelection(current => next === current.index ? current : { index: next, previousIndex: current.index })
+    }
+  }, [])
+
+  const move = useCallback((direction: number) => {
+    if (!busyRef.current && !pendingRef.current) {
+      setSelection(current => ({ index: nearestIndex(current.index + direction, COUNT), previousIndex: current.index }))
+    }
+  }, [])
+
+  // Rate-limit momentum events while still allowing sustained scrolling to loop.
   useEffect(() => {
     const stage = stageRef.current
-    if (!stage || reducedMotion) return
+    if (!stage) return
     const wheel = wheelRef.current
     const onWheel = (event: WheelEvent) => {
-      const delta = Math.abs(event.deltaY) >= Math.abs(event.deltaX) ? event.deltaY : event.deltaX
+      if (event.ctrlKey || event.metaKey || busyRef.current || pendingRef.current) return
+      const delta = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY
       if (!delta) return
-      event.preventDefault()
-      const step = cardStep(cardRefs.current[0]?.offsetWidth ?? 280)
-      positionRef.current = clamp(
-        positionRef.current + (delta / (step * 1.1)) * 0.85,
-        -EDGE_OVERSCROLL,
-        COUNT - 1 + EDGE_OVERSCROLL,
-      )
-      const next = nearestIndex(positionRef.current, COUNT)
-      if (next !== activeRef.current) {
-        activeRef.current = next
-        setActiveIndex(next)
+      const unit = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? stage.clientHeight || 240 : 1
+      wheel.total += delta * unit
+      if (!wheel.moved && Math.abs(wheel.total) >= 32) {
+        move(Math.sign(wheel.total))
+        wheel.moved = true
       }
-      wheel.active = true
-      wakeRef.current()
-      window.clearTimeout(wheel.timer)
-      wheel.timer = window.setTimeout(() => {
-        wheel.active = false
-        targetRef.current = snapTarget(positionRef.current, 0, COUNT)
-        wakeRef.current()
-      }, 140)
+      if (wheel.moved) event.preventDefault()
+      if (!wheel.timer) wheel.timer = window.setTimeout(() => {
+        wheel.total = 0; wheel.moved = false; wheel.timer = 0
+      }, 180)
     }
     stage.addEventListener('wheel', onWheel, { passive: false })
     return () => {
       stage.removeEventListener('wheel', onWheel)
       window.clearTimeout(wheel.timer)
     }
-  }, [reducedMotion])
+  }, [move])
 
-  const goTo = useCallback((index: number) => {
-    const next = clamp(index, 0, COUNT - 1)
-    targetRef.current = next
-    velocityRef.current = 0
-    wheelRef.current.active = false
-    if (reducedMotion) positionRef.current = next
-    wakeRef.current()
-  }, [reducedMotion])
-
-  const move = (direction: number) => {
-    goTo(nearestIndex(targetRef.current, COUNT) + direction)
+  const applyActive = async () => {
+    if (busyRef.current || pendingRef.current) return
+    pendingRef.current = true
+    setSaving(true)
+    const selectedId = active.id
+    try {
+      await onApply(selectedId)
+      committedThemeRef.current = selectedId
+      // Hosts may close the picker as soon as their save succeeds.
+      if (!mountedRef.current) applyMascotTheme(selectedId)
+    } catch {
+      // The host owns the persistence error. Dismissal restores the committed theme.
+    } finally {
+      pendingRef.current = false
+      if (mountedRef.current) setSaving(false)
+    }
   }
 
-  const handlePointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
-    if (reducedMotion) return
-    if (event.pointerType === 'mouse' && event.button !== 0) return
-    if ((event.target as HTMLElement).closest('button')) return
-    dragRef.current = { active: true, lastX: event.clientX, distance: 0 }
-    targetRef.current = positionRef.current
-    velocityRef.current = 0
-    wheelRef.current.active = false
-    setDragging(true)
-    event.currentTarget.setPointerCapture(event.pointerId)
+  const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (event.target !== event.currentTarget || busyRef.current || pendingRef.current) return
+    if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
+      event.preventDefault()
+      move(event.key === 'ArrowRight' ? 1 : -1)
+    } else if (event.key === 'Home' || event.key === 'End') {
+      event.preventDefault()
+      goTo(event.key === 'Home' ? 0 : COUNT - 1)
+    } else if (event.key === 'Enter') {
+      event.preventDefault()
+      void applyActive()
+    }
   }
 
-  const handlePointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
-    if (!dragRef.current.active) return
-    const dx = event.clientX - dragRef.current.lastX
-    dragRef.current.lastX = event.clientX
-    dragRef.current.distance += Math.abs(dx)
-    const step = cardStep(cardRefs.current[0]?.offsetWidth ?? 280)
-    const delta = dx / step
-    positionRef.current = clamp(
-      positionRef.current - delta,
-      -EDGE_OVERSCROLL,
-      COUNT - 1 + EDGE_OVERSCROLL,
-    )
-    velocityRef.current = clamp(-delta, -1.2, 1.2)
-    wakeRef.current()
+  const handlePointerDown = (event: PointerEvent<HTMLDivElement>) => {
+    if (busyRef.current || pendingRef.current || event.isPrimary === false || event.button > 0) return
+    dragRef.current = { id: event.pointerId, x: event.clientX, y: event.clientY }
+    suppressClickRef.current = false
   }
 
-  const endDrag = (event: ReactPointerEvent<HTMLDivElement>) => {
-    if (!dragRef.current.active) return
-    dragRef.current.active = false
-    setDragging(false)
-    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+  const handlePointerMove = (event: PointerEvent<HTMLDivElement>) => {
+    const drag = dragRef.current
+    if (!drag || drag.id !== event.pointerId) return
+    const dx = event.clientX - drag.x
+    const dy = event.clientY - drag.y
+    // Capturing on pointerdown would retarget taps away from the side option.
+    if (Math.abs(dx) >= 12 && Math.abs(dx) > Math.abs(dy) * 1.2) {
+      suppressClickRef.current = true
+      event.currentTarget.setPointerCapture?.(event.pointerId)
+    }
+  }
+
+  const finishPointer = (event: PointerEvent<HTMLDivElement>, cancelled = false) => {
+    const drag = dragRef.current
+    if (!drag || drag.id !== event.pointerId) return
+    dragRef.current = null
+    if (event.currentTarget.hasPointerCapture?.(event.pointerId)) {
       event.currentTarget.releasePointerCapture(event.pointerId)
     }
-    targetRef.current = snapTarget(positionRef.current, velocityRef.current, COUNT)
-    velocityRef.current = 0
-    wakeRef.current()
-  }
-
-  const handleCardClick = (index: number) => {
-    if (dragRef.current.distance > 6) {
-      dragRef.current.distance = 0
-      return
-    }
-    if (index !== activeRef.current) goTo(index)
-  }
-
-  const handleKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
-    if (event.key === 'ArrowLeft') {
-      event.preventDefault()
-      move(-1)
-    } else if (event.key === 'ArrowRight') {
-      event.preventDefault()
-      move(1)
-    } else if (event.key === 'Home') {
-      event.preventDefault()
-      goTo(0)
-    } else if (event.key === 'End') {
-      event.preventDefault()
-      goTo(COUNT - 1)
-    } else if (event.key === 'Enter' && event.target === event.currentTarget) {
-      event.preventDefault()
-      void applyActive(active.id)
+    if (cancelled) return
+    const direction = swipeDirection(event.clientX - drag.x, event.clientY - drag.y)
+    if (direction) {
+      suppressClickRef.current = true
+      move(direction)
     }
   }
 
-  const actionVars = {
-    ...mascotVars(active),
-    '--accent': active.accent,
-    '--accent-vivid': active.accentVivid,
-    '--text-on-accent': MASCOT_THEMES[active.id].onAccent,
+  const theme = MASCOT_THEMES[active.id]
+  const vars = {
+    '--m-accent': theme.accent,
+    '--m-ink': theme.accentInk,
+    '--accent': theme.accent,
+    '--accent-vivid': theme.accentVivid,
+    '--text-on-accent': theme.onAccent,
   } as CSSProperties
 
   return (
-    <div className="mascot-carousel" style={mascotVars(active)}>
-      <div className="mascot-carousel__backdrop" aria-hidden="true">
-        {MASCOT_OPTIONS.map((option, index) => (
-          <div
-            key={option.id}
-            className={`mascot-carousel__tint${index === activeIndex ? ' is-active' : ''}`}
-            style={mascotVars(option)}
-          />
-        ))}
-      </div>
-
+    <section className="mascot-carousel" data-mascot={active.id} aria-label="Pilihan maskot" aria-roledescription="karusel" style={vars}>
       <div
         ref={stageRef}
-        className={`mascot-stage${dragging ? ' is-dragging' : ''}${reducedMotion ? ' mascot-stage--simple' : ''}`}
-        data-paused={hidden}
+        className="mascot-stage"
         role="listbox"
         aria-label="Pilih maskot"
-        aria-activedescendant={`mascot-option-${active.id}`}
+        aria-orientation="horizontal"
+        aria-activedescendant={optionId(active.id)}
+        aria-disabled={busy || undefined}
         tabIndex={0}
         onKeyDown={handleKeyDown}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
-        onPointerUp={endDrag}
-        onPointerCancel={endDrag}
+        onPointerUp={event => finishPointer(event)}
+        onPointerCancel={event => finishPointer(event, true)}
+        onLostPointerCapture={event => {
+          // Touch implicitly captures the option first. Its bubbling loss when
+          // capture transfers to this stage does not cancel the user's swipe.
+          if (event.target === event.currentTarget) finishPointer(event, true)
+        }}
       >
         {MASCOT_OPTIONS.map((option, index) => {
-          const snapshot = snapshots[option.id]
-          const isFailed = failed[option.id] || !canRenderMascotSnapshot()
+          const offset = nearestIndex(index - activeIndex + 1, COUNT) - 1
+          const previousOffset = nearestIndex(index - previousIndex + 1, COUNT) - 1
+          const direction = activeIndex === previousIndex ? 0 : nearestIndex(activeIndex - previousIndex, COUNT) === 1 ? 1 : -1
+          const wraps = direction && previousOffset === -direction && offset === direction
+          const previewTheme = MASCOT_THEMES[option.id]
           return (
             <div
               key={option.id}
-              ref={(node) => { cardRefs.current[index] = node }}
-              id={`mascot-option-${option.id}`}
+              id={optionId(option.id)}
               role="option"
-              aria-selected={index === activeIndex}
+              aria-selected={offset === 0}
               aria-label={`${option.name}, tema ${option.themeName}`}
-              data-active={index === activeIndex}
-              className="mascot-card"
-              style={mascotVars(option)}
-              onClick={() => handleCardClick(index)}
+              data-position={offset}
+              data-wrap={wraps ? direction : undefined}
+              className="mascot-preview"
+              style={{ '--preview-tint': previewTheme.accentSoft } as CSSProperties}
+              onClick={() => {
+                if (suppressClickRef.current) { suppressClickRef.current = false; return }
+                goTo(index)
+              }}
             >
-              <div
-                ref={(node) => { innerRefs.current[index] = node }}
-                className="mascot-card__inner"
-              >
-                <div className="mascot-card__art">
-                  {snapshot ? (
-                    <img src={snapshot} alt="" draggable={false} />
-                  ) : isFailed ? (
-                    <MascotCanvas mascotId={option.id} state="idle" size={reducedMotion ? 112 : 216} />
-                  ) : reducedMotion ? (
-                    <MascotCanvas mascotId={option.id} state="idle" size={112} />
-                  ) : (
-                    <span className="mascot-card__loading" aria-hidden="true" />
-                  )}
-                </div>
-                <div className="mascot-card__foot">
-                  <span className="mascot-card__name">{option.name}</span>
-                  <span className="mascot-card__personality">{option.personality}</span>
-                </div>
+              <div className="mascot-preview__art" aria-hidden="true">
+                <MascotCanvas mascotId={option.id} state="idle" size={240} />
               </div>
             </div>
           )
         })}
       </div>
 
-      <div className="mascot-carousel__meta" aria-live="polite">
-        <p className="mascot-carousel__theme">{active.name} · Tema {active.themeName}</p>
-        <p className="mascot-carousel__tagline">{active.tagline}</p>
+      <div className="mascot-carousel__meta" aria-live="polite" aria-atomic="true">
+        <h3 className="mascot-carousel__name">{active.name}</h3>
+        <p className="mascot-carousel__theme">Tema {active.themeName} · {active.personality}</p>
+        <span className="sr-only">{activeIndex + 1} dari {COUNT}</span>
       </div>
 
-      <div className="mascot-dots" role="group" aria-label="Pilih maskot cepat">
-        {MASCOT_OPTIONS.map((option, index) => (
-          <button
-            key={option.id}
-            type="button"
-            className={`mascot-dot${index === activeIndex ? ' is-active' : ''}`}
-            aria-label={`Pilih ${option.name}`}
-            aria-current={index === activeIndex ? 'true' : undefined}
-            onClick={() => goTo(index)}
-          />
-        ))}
-      </div>
-
-      <div className="mascot-carousel__actions" style={actionVars}>
-        <button
-          type="button"
-          className="mascot-arrow"
-          aria-label="Maskot sebelumnya"
-          onClick={() => move(-1)}
-          disabled={activeIndex === 0}
-        >
+      <div className="mascot-carousel__actions">
+        <button type="button" className="mascot-arrow" aria-label="Maskot sebelumnya" disabled={busy} onClick={() => move(-1)}>
           <ChevronLeft size={22} aria-hidden="true" />
         </button>
-        <Button onClick={() => { void applyActive(active.id) }} loading={applying} disabled={applying}>
-          Pilih Maskot ini
-        </Button>
-        <button
-          type="button"
-          className="mascot-arrow"
-          aria-label="Maskot berikutnya"
-          onClick={() => move(1)}
-          disabled={activeIndex === COUNT - 1}
-        >
+        <Button onClick={() => { void applyActive() }} loading={busy} disabled={busy}>Pilih Maskot ini</Button>
+        <button type="button" className="mascot-arrow" aria-label="Maskot berikutnya" disabled={busy} onClick={() => move(1)}>
           <ChevronRight size={22} aria-hidden="true" />
         </button>
       </div>
-    </div>
+    </section>
   )
 }

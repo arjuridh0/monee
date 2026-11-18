@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { getPeriodBounds, isInPeriod, getPeriodKey, getToday } from '@/core/finance/period'
+import { getPeriodBounds, isInPeriod, getPeriodKey } from '@/core/finance/period'
 
 describe('period', () => {
   describe('getPeriodBounds — startDay = 1 (default)', () => {

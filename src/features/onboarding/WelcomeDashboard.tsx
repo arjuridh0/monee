@@ -10,7 +10,8 @@ import { MascotCanvas } from '@/features/mascot/MascotCanvas'
 import { FlipCard } from '@/components/reactbits/FlipCard'
 import { getToday } from '@/core/finance/period'
 import { validateTransaction } from '@/core/finance/guards'
-import type { BucketProgress, Category } from '@/core/finance/types'
+import type { BucketProgress, Bucket } from '@/core/finance/types'
+import { transactionPresentation } from '@/core/finance/transaction-presentation'
 import { CategoryIcon } from '@/components/ui/CategoryIcon'
 import { isPeriodLocked } from '@/core/finance/period-lock'
 import { recordRecurring } from '@/core/finance/recurring'
@@ -46,18 +47,18 @@ function BucketProgressCard({ item }: { item: BucketProgress }) {
 
 const byBucketOrder = (a: BucketProgress, b: BucketProgress) => a.bucket.sortOrder - b.bucket.sortOrder
 
-function RecentTransaction({ transaction, category }: {
+function RecentTransaction({ transaction, buckets }: {
   transaction: NonNullable<ReturnType<typeof useMoneeStore.getState>['snapshot']>['recentTxs'][number]
-  category: Category | undefined
+  buckets: Bucket[]
 }) {
   const rupiah = useRupiah()
   const isIncome = transaction.type === 'income'
-  const isDeposit = transaction.type === 'savings_deposit'
-  const label = isDeposit ? 'Setoran tabungan' : category?.name ?? (isIncome ? 'Pemasukan' : 'Pengeluaran')
+  const presentation = transactionPresentation(transaction, buckets)
+  const label = presentation.name
   const date = new Date(`${transaction.date}T00:00:00`).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })
   return <li className="welcome-transaction">
-    <span className={`welcome-transaction-icon${isIncome ? ' welcome-transaction-icon--income' : ''}`} style={{ background: category?.color ?? 'var(--surface-3)' }} aria-hidden="true">
-      <CategoryIcon name={category?.icon ?? (isDeposit ? 'piggy-bank' : 'shapes')} />
+    <span className={`welcome-transaction-icon${isIncome ? ' welcome-transaction-icon--income' : ''}`} style={{ background: presentation.color }} aria-hidden="true">
+      <CategoryIcon name={presentation.icon} />
     </span>
     <span className="welcome-transaction-copy"><strong>{label}</strong>
       {transaction.note && <span>{transaction.note}</span>}
@@ -128,6 +129,7 @@ export function WelcomeDashboard() {
   const profile = useMoneeStore(state => state.profile)
   const snapshot = useMoneeStore(state => state.snapshot)
   const categories = useMoneeStore(state => state.categories)
+  const buckets = useMoneeStore(state => state.buckets)
   const transactions = useMoneeStore(state => state.transactions)
   const sweeps = useMoneeStore(state => state.sweeps)
   const addTransaction = useMoneeStore(state => state.addTransaction)
@@ -230,8 +232,8 @@ export function WelcomeDashboard() {
   ]
 
   return <section className="welcome-dashboard">
-    <header className="welcome-header"><div><p>Hai, {profile?.name}!</p><h1>Beranda</h1></div>
-      <Button variant="secondary" aria-label="Kunci Monee" onClick={() => useMoneeStore.getState().setLocked(true)}><LockKeyhole size={18} aria-hidden="true" /></Button></header>
+    <header className="welcome-header"><div><h1>Beranda</h1><p>Hai, {profile?.name}!</p></div>
+      {profile?.pinHash && profile.pinSalt && <Button variant="secondary" aria-label="Kunci Monee" onClick={() => useMoneeStore.getState().setLocked(true)}><LockKeyhole size={18} aria-hidden="true" /></Button>}</header>
     {hasIncome && snapshot ? <>
       <div className={`dashboard-balance-stage${savingsFlipped ? ' dashboard-balance-stage--back' : ''}`}>
         <div className="dashboard-hero-mascot"><MascotCanvas mascotId={profile?.mascotId ?? 'mochi'} state={savingsFlipped ? 'happy' : 'idle'} size={190} /></div>
@@ -239,7 +241,8 @@ export function WelcomeDashboard() {
           front={<div className="welcome-balance"><strong aria-label="Saldo periode" className="font-tabular">{rupiah(snapshot.balance.balance)}</strong>
             <span>Reset Rp0 setiap periode; sisanya masuk Sisa.</span>
             <div className="dashboard-money-summary"><span className="money-income"><ArrowDownLeft size={14} /> Masuk {rupiah(snapshot.balance.totalIncome)}</span>
-              <span className="money-expense"><ArrowUpRight size={14} /> Keluar {rupiah(snapshot.balance.totalExpense + snapshot.balance.totalSavingsDeposit)}</span></div>
+              <span className="money-expense"><ArrowUpRight size={14} /> Belanja {rupiah(snapshot.balance.totalExpense)}</span>
+              <span className="money-savings">Ke tabungan {rupiah(snapshot.balance.totalSavingsDeposit)}</span></div>
             <small>{snapshot.period.start} — {snapshot.period.end}</small></div>}
           back={<section aria-label="Ringkasan tabungan"><div className="dashboard-savings-total"><span>Total tabungan</span><strong className="font-tabular">{rupiah(snapshot.savings.totalSavings)}</strong></div>
             <SavingsPockets snapshot={snapshot} onOpenSavings={() => navigate('/tabungan')} /></section>} />
@@ -259,7 +262,7 @@ export function WelcomeDashboard() {
       {savingsFlipped && <SavingsBack snapshot={snapshot} transactions={transactions} sweeps={sweeps}
         onDeposit={() => navigate('/tabungan?action=deposit')} onSpend={() => navigate('/tabungan?action=spend')} />}
     </> : <div className="welcome-empty"><h2>Belum ada pemasukan bulan ini</h2>
-      <div className="welcome-companion"><MascotCanvas mascotId={profile?.mascotId ?? 'mochi'} state="greeting" size={190} /></div>
+      <div className="welcome-companion"><MascotCanvas mascotId={profile?.mascotId ?? 'mochi'} state="greeting" size={154} /></div>
       <p className="welcome-greeting">Aku {MASCOT_THEMES[profile?.mascotId ?? 'mochi'].name}. Yuk mulai catat!</p>
       <p>Mulai dari satu pemasukan. Jatahmu akan terbagi sesuai rencana yang sudah kamu pilih.</p>
       <Button onClick={() => setAdding(true)}><Plus size={18} aria-hidden="true" /> Tambah pemasukan</Button></div>}
@@ -284,12 +287,11 @@ export function WelcomeDashboard() {
       {snapshot.recentTxs.length > 0 ? <Card className="welcome-recent-card">
         <ol aria-label="Daftar transaksi terakhir">
           {snapshot.recentTxs.map(transaction => <RecentTransaction key={transaction.id} transaction={transaction}
-            category={categories.find(category => category.id === transaction.categoryId)} />)}
+            buckets={buckets} />)}
         </ol>
-      </Card> : <Card className="welcome-recent-empty">
-        <p>Belum ada transaksi bulan ini. Catat pemasukan atau transaksi pertamamu, nanti muncul di sini.</p>
-        <Button variant="secondary" onClick={() => setAdding(true)}>Tambah pemasukan</Button>
-      </Card>}
+      </Card> : <p className="welcome-recent-empty">
+        Belum ada transaksi bulan ini. Catat pemasukan atau transaksi pertamamu, nanti muncul di sini.
+      </p>}
     </section>}
     {adding && <Dialog open title="Tambah pemasukan" onClose={() => { if (!busy) setAdding(false) }}>
       <IncomeStep standalone income={null} categories={categories} busy={busy} onNext={income => { void saveIncome(income) }} />

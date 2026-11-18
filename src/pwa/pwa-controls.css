@@ -29,3 +29,41 @@
 @media (min-width: 1024px) {
   .pwa-update { left: calc(var(--sidebar-desktop) + 24px); }
 }
+
+.pwa-install-prompt {
+  position: fixed;
+  z-index: var(--layer-toast);
+  inset: auto 16px calc(100px + env(safe-area-inset-bottom));
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  max-width: 420px;
+  margin-inline: auto;
+  padding: 20px;
+  border: 1px solid var(--border-hair);
+  border-radius: 22px;
+  background: var(--surface);
+  color: var(--text-primary);
+  box-shadow: var(--shadow-float);
+  animation: pwa-install-appear 220ms cubic-bezier(.2,.8,.2,1) both;
+}
+.pwa-install-prompt__mark { flex: 0 0 auto; padding-top: 3px; }
+.pwa-install-prompt__mark img { width: 40px; height: 40px; }
+.pwa-install-prompt__body { min-width: 0; }
+.pwa-install-prompt h2 { margin: 0 0 4px; font: 700 20px/1.2 var(--font-display); }
+.pwa-install-prompt p { margin: 0; font-size: 13px; line-height: 1.5; color: var(--text-accessible); }
+.pwa-install-prompt__actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 14px; }
+.pwa-install-prompt__actions .ui-button { min-height: 44px; padding-inline: 16px; }
+.pwa-install-guide { display: grid; gap: 20px; }
+.pwa-install-guide p { margin: 0; color: var(--text-accessible); }
+.pwa-install-guide ol { display: grid; gap: 16px; padding-inline-start: 22px; }
+.pwa-install-guide li { padding-inline-start: 6px; line-height: 1.6; }
+.pwa-install-guide li svg { display: inline; vertical-align: -.15em; }
+body:has(dialog[open]) .pwa-install-prompt { display: none; }
+@keyframes pwa-install-appear { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@media (min-width: 768px) {
+  .pwa-install-prompt { left: auto; right: 24px; bottom: 24px; margin: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pwa-install-prompt { animation: none; }
+}

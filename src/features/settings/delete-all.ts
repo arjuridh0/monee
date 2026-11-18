@@ -14,23 +14,31 @@ export class DeleteAllDataError extends Error {
 }
 
 export interface DeleteAllDataInput {
-  pin: string
+  pin?: string
   /** Hash shown by the settings screen when the destructive dialog opened. */
   expectedPinHash: string
 }
 
-export async function deleteAllData(db: MoneeDB, input: DeleteAllDataInput): Promise<void> {
-  if (!/^\d{6}$/.test(input.pin)) {
-    throw new DeleteAllDataError('ERR_DELETE_PIN_FORMAT', 'Masukkan PIN 6 digit untuk menghapus data.')
-  }
+export async function validateDeleteAllData(db: MoneeDB, input: DeleteAllDataInput): Promise<void> {
   const current = await db.get(STORES.profile, 'profile')
   if (!current) throw new DeleteAllDataError('ERR_DELETE_PROFILE', 'Profil tidak ditemukan. Muat ulang Monee.')
   if (current.pinHash !== input.expectedPinHash) {
     throw new DeleteAllDataError('ERR_DELETE_STALE', 'PIN berubah di tab lain. Muat ulang Monee lalu coba lagi.')
   }
-  if (!(await verifyPin(input.pin, current.pinHash, current.pinSalt))) {
-    throw new DeleteAllDataError('ERR_DELETE_PIN', 'PIN belum cocok. Data kamu tetap aman.')
+  if (current.pinHash) {
+    if (!/^\d{6}$/.test(input.pin ?? '')) {
+      throw new DeleteAllDataError('ERR_DELETE_PIN_FORMAT', 'Masukkan PIN 6 digit untuk menghapus data.')
+    }
+    if (!(await verifyPin(input.pin!, current.pinHash, current.pinSalt))) {
+      throw new DeleteAllDataError('ERR_DELETE_PIN', 'PIN belum cocok. Data kamu tetap aman.')
+    }
   }
+}
+
+export async function deleteAllData(db: MoneeDB, input: DeleteAllDataInput): Promise<void> {
+  await validateDeleteAllData(db, input)
+  const current = await db.get(STORES.profile, 'profile')
+  if (!current) throw new DeleteAllDataError('ERR_DELETE_PROFILE', 'Profil tidak ditemukan. Muat ulang Monee.')
 
   // Verify PIN outside IDB, then recheck the exact profile snapshot inside the clearing transaction.
   const tx = db.transaction(STORE_NAMES, 'readwrite')

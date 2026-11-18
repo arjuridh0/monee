@@ -33,9 +33,9 @@ console.log(`[PASS] 14 State seragam terverifikasi di states.js (${expectedState
 
 // 3. Modul Maskot (mochi, luna, bumi)
 const mascotDefs = [
-  { id: 'mochi', name: 'Mochi', file: 'mochi.js', model3d: 'mochi.glb', png: 'mochi.png' },
-  { id: 'luna',  name: 'Luna',  file: 'luna.js',  model3d: 'furry.glb', png: 'luna.png' },
-  { id: 'bumi',  name: 'Bumi',  file: 'bumi.js',  model3d: 'yobao.glb', png: 'bumi.png' },
+  { id: 'mochi', name: 'Mochi', file: 'mochi.js', png: 'mochi.png' },
+  { id: 'luna',  name: 'Luna',  file: 'luna.js', png: 'luna.png' },
+  { id: 'bumi',  name: 'Bumi',  file: 'bumi.js', png: 'bumi.png' },
 ];
 
 mascotDefs.forEach(m => {
@@ -60,16 +60,7 @@ mascotDefs.forEach(m => {
   assert.ok(fs.existsSync(pngPath), `File PNG mascots/png/${m.png} harus ada`);
   assert.ok(fs.statSync(pngPath).size > 50000, `Ukuran ${m.png} harus valid (> 50KB)`);
 
-  // 3D Draco model
-  const modelPath = path.join(ROOT, 'public', 'mascots', '3d', m.model3d);
-  assert.ok(fs.existsSync(modelPath), `Model 3D public/mascots/3d/${m.model3d} harus ada`);
-  assert.ok(fs.statSync(modelPath).size > 100000, `Ukuran ${m.model3d} harus valid (> 100KB)`);
-  const model = fs.readFileSync(modelPath);
-  assert.equal(model.toString('ascii', 0, 4), 'glTF', `${m.model3d} harus memiliki header GLB`);
-  assert.equal(model.readUInt32LE(4), 2, `${m.model3d} harus memakai GLB versi 2`);
-  assert.equal(model.readUInt32LE(8), model.length, `${m.model3d} harus memiliki panjang GLB yang utuh`);
-
-  console.log(`[PASS] Paket maskot ${m.name} (${m.id}): JS engine, PNG render, dan 3D Draco GLB valid.`);
+  console.log(`[PASS] Paket maskot ${m.name} (${m.id}): JS engine 2.5D dan arsip PNG valid.`);
 });
 
 // 4. Mockup PNG tetap tersedia untuk desain, tanpa membaca format internal editor.
@@ -83,20 +74,22 @@ for (const image of mockups) {
   assert.equal(fs.readFileSync(imagePath).subarray(0, 8).toString('hex'), '89504e470d0a1a0a', `${image} harus berupa PNG`);
 }
 
-// 5. Studio developer memakai dependensi dan aset runtime yang sama.
+// 5. Studio dan picker hanya memakai engine 2.5D; aset dan loader lama tidak dikirim.
 const previewPath = path.join(ROOT, 'tools', 'studio', 'index.html');
 assert.ok(fs.existsSync(previewPath), 'tools/studio/index.html harus ada');
 const previewContent = fs.readFileSync(previewPath, 'utf8');
 assert.ok(previewContent.includes('id="stage"'), 'Studio harus memiliki elemen stage carousel');
 assert.ok(previewContent.includes('MascotCanvas'), 'Studio harus memuat MascotCanvas');
-for (const toolPath of [previewPath, path.join(ROOT, 'tools', 'render.html')]) {
-  const content = fs.readFileSync(toolPath, 'utf8');
-  assert.ok(content.includes('/node_modules/three/build/three.module.js'), 'Tool harus memakai Three dari dependensi root');
-  assert.ok(content.includes('/public/draco/'), 'Tool harus memakai decoder Draco lokal');
-  assert.ok(!/cdn\.jsdelivr\.net\/npm\/three|\/tools\/node_modules\//.test(content), 'Tool tidak boleh memakai salinan Three lain');
+assert.ok(previewContent.includes('../../mascots/core/mascot_canvas.js'), 'Studio harus memakai engine aplikasi');
+assert.ok(!/three|GLTF|DRACO|\.glb/i.test(previewContent), 'Studio tidak boleh memuat runtime 3D');
+const picker = fs.readFileSync(path.join(ROOT, 'src/features/mascot/MascotCarousel.tsx'), 'utf8');
+assert.ok(picker.includes('MascotCanvas'), 'Picker harus memakai canvas 2.5D');
+assert.ok(!/model-snapshot|three|GLTF|DRACO/.test(picker), 'Picker tidak boleh memuat snapshot 3D');
+for (const oldPath of ['public/mascots/3d', 'public/draco', 'src/features/mascot/model-snapshot.ts',
+  'src/core/mascot/model-map.ts', 'tools/render.html', 'tools/render_png.mjs']) {
+  assert.ok(!fs.existsSync(path.join(ROOT, oldPath)), `${oldPath} harus sudah dihapus`);
 }
-for (const { model3d } of mascotDefs) assert.ok(previewContent.includes(`../../public/mascots/3d/${model3d}`), 'Studio harus memuat model runtime');
-console.log('[PASS] Studio developer dan renderer memakai aset runtime lokal.');
+console.log('[PASS] Studio dan picker hanya memakai Canvas 2.5D, tanpa model atau decoder 3D.');
 
 // 6. Root README
 const rootReadme = path.join(ROOT, 'README.md');

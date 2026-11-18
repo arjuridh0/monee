@@ -1,12 +1,13 @@
 // Root navigation contract: docs/03-ux-interaction.md §Navbar (D35, D42, D44).
 // Bottom nav <768px, sidebar ≥768px: dua-duanya tidak pernah di-render bersamaan (D44).
-import { NavLink } from 'react-router-dom'
+import { matchPath, NavLink, useLocation } from 'react-router-dom'
 import { useEffect, useRef } from 'react'
-import { LayoutGroup, motion, useReducedMotion } from 'framer-motion'
-import { BarChart3, Home, PiggyBank, Plus, Settings } from 'lucide-react'
+import { motion } from 'framer-motion'
+import { BarChart3, Home, Mic, PiggyBank, Settings } from 'lucide-react'
 import { ROUTES } from '@/app/routes'
 import { REDUCED_MOTION_QUERY, useMediaQuery } from './useMediaQuery'
 import '@/app/shell.css'
+import { Brand } from '@/components/ui/Brand'
 
 const ITEMS = [
   { to: ROUTES.home, label: 'Home', icon: Home },
@@ -20,7 +21,7 @@ export function AddButton({ className = '', onClick }: { className?: string; onC
   const cancel = () => window.clearTimeout(timer.current)
   useEffect(() => () => window.clearTimeout(timer.current), [])
   return <button type="button" className={`nav-add ${className}`} aria-label="Tambah transaksi"
-    title="Tambah transaksi · tahan untuk voice" onPointerDown={event => {
+    title="Catat dengan suara · ketik atau scan juga tersedia" onPointerDown={event => {
       if (event.button !== 0) return
       longPress.current = false; origin.current = { x: event.clientX, y: event.clientY }
       timer.current = window.setTimeout(() => { longPress.current = true; window.dispatchEvent(new Event('monee:voice')) }, 550)
@@ -28,48 +29,54 @@ export function AddButton({ className = '', onClick }: { className?: string; onC
     onPointerMove={event => { if (Math.hypot(event.clientX - origin.current.x, event.clientY - origin.current.y) > 10) cancel() }}
     onContextMenu={event => { event.preventDefault() }}
     onClick={event => { cancel(); if (!longPress.current || event.detail === 0) onClick(); longPress.current = false }}>
-    <Plus size={24} aria-hidden="true" /><span className="nav-add-label">Catat</span>
+    <Mic size={24} strokeWidth={1.8} aria-hidden="true" /><span className="nav-add-label">Catat</span>
   </button>
 }
 
-function NavLinkItem({ to, label, icon: Icon, baseClass, activeClass }: { to: string; label: string; icon: typeof Home; baseClass: string; activeClass: string }) {
-  // framer's hook captures the preference only at mount; read the live query too.
-  const motionHookReduce = useReducedMotion()
-  const mediaReduce = useMediaQuery(REDUCED_MOTION_QUERY)
-  const reduce = motionHookReduce || mediaReduce
-  return <NavLink to={to} className={({ isActive }) => `${baseClass}${isActive ? ` ${activeClass}` : ''}`}>
+function NavLinkItem({ to, label, icon: Icon, baseClass, activeClass, indicatorId }: {
+  to: string; label: string; icon: typeof Home; baseClass: string; activeClass: string; indicatorId?: string
+}) {
+  const reduce = useMediaQuery(REDUCED_MOTION_QUERY)
+  return <NavLink to={to} end className={({ isActive }) => `${baseClass}${isActive ? ` ${activeClass}` : ''}`}>
     {({ isActive }) => <>
-      {isActive && <motion.span className="nav-active-pill" {...(reduce ? {} : { layoutId: "root-active-pill" })} aria-hidden="true"
-        initial={reduce ? { opacity: 0 } : false} animate={reduce ? { opacity: 1 } : { scaleX: [1, 1.08, 1], scaleY: [1, 0.92, 1] }}
-        transition={reduce ? { duration: 0.12 } : { layout: { duration: reduce ? 0.12 : 0.26, ease: [0.34, 1.56, 0.64, 1] }, scaleX: { duration: reduce ? 0 : 0.26 }, scaleY: { duration: reduce ? 0 : 0.26 } }} />}
-      <motion.span className="nav-icon" animate={{ scale: isActive && !reduce ? [1, 1.25, 1] : 1 }} transition={{ duration: reduce ? 0 : 0.28 }}><Icon size={22} aria-hidden="true" /></motion.span>
+      {isActive && indicatorId && <motion.span className="nav-active-pill" aria-hidden="true" layout="position" layoutId={indicatorId}
+        initial={false} animate={{ opacity: 1, scale: 1 }}
+        transition={reduce ? { duration: 0 } : { duration: 0.22, ease: [0.22, 1, 0.36, 1] }} />}
+      <motion.span className="nav-icon" animate={{ y: isActive && !reduce ? -1 : 0, scale: isActive && !reduce ? 1.03 : 1 }}
+        transition={reduce ? { duration: 0 } : { duration: 0.16, ease: [0.2, 0.8, 0.2, 1] }}><Icon size={22} aria-hidden="true" /></motion.span>
       <span className="nav-label">{label}</span>
     </>}
   </NavLink>
 }
 
 export function BottomNav({ onAddTransaction }: { onAddTransaction: () => void }) {
-  return <LayoutGroup id="bottom-root-nav"><nav className="bottom-nav" aria-label="Navigasi utama">
+  return <nav className="bottom-nav" aria-label="Navigasi utama">
     <NavItemPair slice={[0, 2]} baseClass="nav-item" activeClass="nav-item--active" />
     <AddButton className="bottom-nav-add" onClick={onAddTransaction} />
     <NavItemPair slice={[2, 4]} baseClass="nav-item" activeClass="nav-item--active" />
-  </nav></LayoutGroup>
+  </nav>
 }
 
 function NavItemPair({ slice, baseClass, activeClass }: { slice: readonly [number, number]; baseClass: string; activeClass: string }) {
-  return <> {ITEMS.slice(slice[0], slice[1]).map(item =>
-    <NavLinkItem key={item.to} to={item.to} label={item.label} icon={item.icon} baseClass={baseClass} activeClass={activeClass} />)}
-  </>
+  const { pathname } = useLocation()
+  const items = ITEMS.slice(slice[0], slice[1])
+  const activeIndex = items.findIndex(item => matchPath({ path: item.to, end: true }, pathname))
+  // One stable highlight moves in local CSS coordinates. Route scroll restoration
+  // must never become part of its trajectory or send it across the add action.
+  return <div className="nav-pair">
+    {activeIndex >= 0 && <span className="nav-active-pill" aria-hidden="true" data-position={activeIndex} />}
+    {items.map(item => <NavLinkItem key={item.to} to={item.to} label={item.label} icon={item.icon} baseClass={baseClass} activeClass={activeClass} />)}
+  </div>
 }
 
 export function Sidebar({ onAddTransaction }: { onAddTransaction: () => void }) {
-  return <LayoutGroup id="sidebar-root-nav"><nav className="sidebar" aria-label="Navigasi utama">
-    <div className="sidebar-brand" aria-hidden="true"><span className="sidebar-logo" /><span className="sidebar-wordmark">Monee</span></div>
+  return <motion.nav layoutRoot className="sidebar" aria-label="Navigasi utama">
+    <Brand className="sidebar-brand" />
     <div className="sidebar-tabs">
-      {ITEMS.map(item => <NavLinkItem key={item.to} to={item.to} label={item.label} icon={item.icon} baseClass="sidebar-item" activeClass="sidebar-item--active" />)}
+      {ITEMS.map(item => <NavLinkItem key={item.to} to={item.to} label={item.label} icon={item.icon} baseClass="sidebar-item" activeClass="sidebar-item--active" indicatorId="nav-active-sidebar" />)}
     </div>
     <AddButton className="sidebar-add" onClick={onAddTransaction} />
-  </nav></LayoutGroup>
+  </motion.nav>
 }
 
 export function RootNav({ onAddTransaction }: { onAddTransaction: () => void }) {

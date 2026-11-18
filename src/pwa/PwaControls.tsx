@@ -1,4 +1,6 @@
+import { useState } from 'react'
 import { dismissUpdate, installApp, protectStorage, updateApp, usePwa } from './pwa-state'
+import { PwaInstallHelp } from './PwaInstallPrompt'
 import './pwa-controls.css'
 
 /** Global, non-blocking notice. Only rendered while a new version is waiting. */
@@ -17,14 +19,16 @@ export function PwaUpdateBanner() {
 /** Install, offline and storage details live inside Atur, never above app content. */
 export function PwaControls() {
   const pwa = usePwa()
-  if (!pwa.install && pwa.storage === 'unsupported' && !pwa.offlineReady && !pwa.message) return null
+  const [helpOpen, setHelpOpen] = useState(false)
+  if (!pwa.install && !pwa.manualInstall && pwa.storage === 'unsupported' && !pwa.offlineReady && !pwa.message) return null
   return <aside className="pwa-controls" aria-label="Aplikasi dan penyimpanan">
     <details>
       <summary>Aplikasi dan penyimpanan</summary>
-      {pwa.offlineReady && <p>Aplikasi siap dibuka offline. Model 3D tersedia setelah pernah dipakai.</p>}
+      {pwa.offlineReady && <p>Aplikasi dan maskot siap dibuka offline. Suara dan pembacaan struk otomatis memerlukan internet.</p>}
       {pwa.install && <button type="button" disabled={pwa.busy} onClick={() => { void installApp() }}>Pasang Monee</button>}
+      {pwa.manualInstall && !pwa.installed && <button type="button" onClick={() => setHelpOpen(true)}>Cara pasang di iPhone atau iPad</button>}
       {pwa.storage !== 'unsupported' && <>
-        <p>Data tersimpan di perangkat ini. Ekspor backup berkala; menghapus data browser tetap menghapus data Monee.</p>
+        <p>Salinan offline tersimpan di perangkat ini. Pastikan sinkronisasi selesai atau ekspor backup sebelum menghapus data browser.</p>
         {pwa.storage === 'protected' ? <p role="status">Perlindungan penyimpanan lokal diberikan browser.</p>
           : <button type="button" disabled={pwa.busy} onClick={() => { void protectStorage() }}>Lindungi penyimpanan lokal</button>}
         {pwa.storage === 'declined' && <p role="status">Browser belum memberikan perlindungan. Data masih bisa dibersihkan saat ruang penyimpanan menipis.</p>}
@@ -32,5 +36,6 @@ export function PwaControls() {
       </>}
       {pwa.message && <p role="status">{pwa.message}</p>}
     </details>
+    <PwaInstallHelp open={helpOpen} onClose={() => setHelpOpen(false)} />
   </aside>
 }

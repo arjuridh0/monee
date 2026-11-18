@@ -1,28 +1,36 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
+import { ImagePlus, ScanLine } from 'lucide-react'
 import { Button, TextField } from '@/components/ui/controls'
 import { Dialog } from '@/components/ui/Dialog'
 import { InlineError } from '@/components/ui/feedback'
+import { ServiceReadiness } from '@/components/ui/ServiceReadiness'
 import { getToday, isValidDateStr } from '@/core/finance/period'
 import type { Transaction } from '@/core/finance/types'
+import { defaultCategoryId } from '@/core/finance/transaction-presentation'
 import { useMoneeStore } from '@/store'
 import { useRupiah } from '@/hooks/useRupiah'
-import { receiptRecognizer } from './provider'
+import { receiptRecognizer, ReceiptAccessError } from './provider'
 import { MAX_RECEIPT_ITEMS, normalizeReceipt, RECEIPT_IMAGE_ACCEPT, validateReceiptImage, type ReceiptRecognizer } from './receipt'
 import './receipt.css'
 
-interface ReviewItem { id: string; label: string; amount: string; categoryId: string; bucketId: string }
+interface ReviewItem { id: string; label: string; amount: string; bucketId: string }
 export function ReceiptDialog({ onClose, recognizer = receiptRecognizer }: { onClose: () => void; recognizer?: ReceiptRecognizer | undefined }) {
   const money = useRupiah()
-  const categories = useMoneeStore(state => state.categories).filter(item => item.type === 'expense' && item.id !== 'cat-tabungan')
+  const privacyHelpId = useId()
+  const imageInputId = useId()
+  const imageInput = useRef<HTMLInputElement>(null)
+  const categories = useMoneeStore(state => state.categories)
+  const categoryId = defaultCategoryId(categories, 'expense')
   const buckets = useMoneeStore(state => state.buckets).filter(item => !item.isSavings)
   const profile = useMoneeStore(state => state.profile)
   function row(label = '', amount = ''): ReviewItem {
-    return { id: crypto.randomUUID(), label, amount, categoryId: categories.find(item => item.id === 'cat-lain-exp')?.id ?? categories[0]?.id ?? '',
+    return { id: crypto.randomUUID(), label, amount,
       bucketId: buckets.find(item => item.id === profile?.defaultBucketId)?.id ?? buckets[0]?.id ?? '' }
   }
   const [items, setItems] = useState<ReviewItem[]>(() => [row()])
   const [merchant, setMerchant] = useState(''), [date, setDate] = useState(getToday())
   const [image, setImage] = useState<File | null>(null), [preview, setPreview] = useState('')
+  const [needsLogin, setNeedsLogin] = useState(false)
   const [sourceTotal, setSourceTotal] = useState<number | undefined>()
   const [error, setError] = useState(''), [reading, setReading] = useState(false), [saving, setSaving] = useState(false)
   const controller = useRef<AbortController | null>(null), previewRef = useRef('')
@@ -43,23 +51,31 @@ export function ReceiptDialog({ onClose, recognizer = receiptRecognizer }: { onC
   }
   function selectImage(file?: File) {
     if (!file) return
-    cancelReading(); setError('')
+    cancelReading(); setError(''); setNeedsLogin(false)
     try {
       validateReceiptImage(file)
       const url = URL.createObjectURL(file)
       releasePreview(); previewRef.current = url; setPreview(url); setImage(file)
     } catch (cause) { setError(cause instanceof Error ? cause.message : 'Foto belum bisa dibuka.') }
   }
+  function removeImage() {
+    cancelReading(); releasePreview(); setPreview(''); setImage(null)
+    setNeedsLogin(false); setError('')
+    if (imageInput.current) { imageInput.current.value = ''; imageInput.current.focus() }
+  }
   async function recognize() {
-    if (!recognizer || !image || reading || saveInFlight.current) return
-    const request = new AbortController(); controller.current = request; setReading(true); setError('')
+    if (!recognizer || !image || reading || controller.current || saveInFlight.current) return
+    const request = new AbortController(); controller.current = request; setReading(true); setError(''); setNeedsLogin(false)
     try {
       const result = normalizeReceipt(await recognizer(image, request.signal))
       if (!active.current || request.signal.aborted) return
       setItems(result.items.map(item => row(item.label, String(item.amount))))
       setMerchant(result.merchant ?? ''); setDate(result.date ?? getToday()); setSourceTotal(result.total)
     } catch (cause) {
-      if (active.current && !request.signal.aborted) setError(cause instanceof Error ? cause.message : 'Pembacaan gagal. Coba lagi atau isi manual.')
+      if (active.current && !request.signal.aborted) {
+        setNeedsLogin(cause instanceof ReceiptAccessError)
+        setError(cause instanceof Error ? cause.message : 'Pembacaan gagal. Coba lagi atau isi manual.')
+      }
     } finally {
       if (controller.current === request) { controller.current = null; if (active.current) setReading(false) }
     }
@@ -73,15 +89,16 @@ export function ReceiptDialog({ onClose, recognizer = receiptRecognizer }: { onC
       if (!isValidDateStr(date) || date > getToday()) throw new Error('Periksa tanggal struk; tanggal tidak boleh di masa depan.')
       if (!items.length || items.length > MAX_RECEIPT_ITEMS) throw new Error('Isi 1–50 item terlebih dahulu.')
       if (!Number.isSafeInteger(total) || total <= 0) throw new Error('Periksa total nominal item.')
+      if (!categoryId) throw new Error('Pengeluaran belum dapat disimpan. Buka ulang aplikasi lalu coba lagi.')
       for (const item of items) {
         if (!item.label.trim() || item.label.trim().length > 120 || !Number.isSafeInteger(Number(item.amount)) || Number(item.amount) <= 0) throw new Error('Isi nama dan nominal rupiah utuh untuk setiap item.')
-        if (!categories.some(category => category.id === item.categoryId) || !buckets.some(bucket => bucket.id === item.bucketId)) throw new Error('Pilih kategori dan bucket setiap item.')
+        if (!buckets.some(bucket => bucket.id === item.bucketId)) throw new Error('Pilih bucket setiap item.')
       }
-      const fingerprint = JSON.stringify({ items, merchant: merchant.trim(), date })
+      const fingerprint = JSON.stringify({ items, merchant: merchant.trim(), date, categoryId })
       if (lastBatch.current?.fingerprint !== fingerprint) {
         const now = Date.now()
         lastBatch.current = { fingerprint, batch: items.map(item => ({ id: item.id, type: 'expense', amount: Number(item.amount), date,
-          categoryId: item.categoryId, bucketId: item.bucketId, note: merchant.trim() ? `${merchant.trim()} · ${item.label.trim()}` : item.label.trim(),
+          categoryId, bucketId: item.bucketId, note: merchant.trim() ? `${merchant.trim()} · ${item.label.trim()}` : item.label.trim(),
           createdAt: now, updatedAt: now, refundedAmount: 0, deleted: false })) }
       }
       saveInFlight.current = true; setSaving(true)
@@ -92,15 +109,26 @@ export function ReceiptDialog({ onClose, recognizer = receiptRecognizer }: { onC
   }
   return <Dialog open sheet title="Scan struk" onClose={close} footer={<Button loading={saving} disabled={reading || !items.length} onClick={() => void save()}>Simpan semua item</Button>}>
     <div className="receipt-form">
-      <p className="ui-helper">Foto hanya dipakai selama review ini dan tidak disimpan ke riwayat atau backup. Periksa semua item sebelum menyimpan sebagai pengeluaran.</p>
-      {!recognizer && <p className="receipt-notice">Model pembaca otomatis belum dikonfigurasi. Kamu bisa melihat foto dan mengisi item secara manual.</p>}
+      <details className="receipt-service-status"><summary>Status pembaca otomatis</summary><ServiceReadiness service="receipt" /></details>
+      <p className="ui-helper">Pilih foto, lalu baca dan periksa itemnya. Foto baru dikirim ke Google Gemini saat kamu menekan Baca otomatis.</p>
       <fieldset disabled={saving || reading} className="receipt-fields">
-        <TextField label="Foto struk" type="file" accept={RECEIPT_IMAGE_ACCEPT} hint="JPEG, PNG, atau WebP, maksimal 10 MB." onChange={event => { selectImage(event.target.files?.[0]); event.target.value = '' }} />
+        <div className="ui-field receipt-photo-field">
+          <label htmlFor={imageInputId}>Foto struk</label>
+          <label htmlFor={imageInputId} className="receipt-upload-prompt" aria-hidden="true"><ImagePlus size={28} strokeWidth={1.5} /><span>Ambil foto atau pilih struk</span><small>JPEG, PNG, WebP · maks. 10 MB</small></label>
+          <input id={imageInputId} ref={imageInput} className="receipt-photo-input" type="file" accept={RECEIPT_IMAGE_ACCEPT}
+            aria-describedby={`${imageInputId}-help ${imageInputId}-selection`}
+            onChange={event => selectImage(event.target.files?.[0])} />
+          <p id={`${imageInputId}-help`} className="ui-helper">JPEG, PNG, atau WebP, maksimal 10 MB.</p>
+          <p id={`${imageInputId}-selection`} className="receipt-photo-name" aria-live="polite" aria-atomic="true">{image ? `Foto dipilih: ${image.name}` : 'Belum ada foto dipilih.'}</p>
+          {image && <Button variant="ghost" className="receipt-photo-remove" onClick={removeImage}>Hapus foto struk</Button>}
+        </div>
         {preview && <img className="receipt-preview" src={preview} alt="Pratinjau foto struk" />}
-        <Button variant="secondary" disabled={!recognizer || !image} onClick={() => void recognize()}>Baca otomatis</Button>
+        <p id={privacyHelpId} className="ui-helper">Tutup informasi pribadi/nomor kartu sebelum mengirim. Kebijakan pemakaian data mengikuti paket Google. <a href="https://ai.google.dev/gemini-api/terms" target="_blank" rel="noopener noreferrer">Ketentuan penggunaan data Google Gemini (tab baru)</a></p>
+        <Button loading={reading} aria-describedby={privacyHelpId} disabled={!recognizer || !image} onClick={() => void recognize()}><ScanLine size={18} aria-hidden="true" />Baca otomatis</Button>
       </fieldset>
       {reading && <><p role="status">Membaca struk…</p><Button variant="ghost" onClick={cancelReading}>Batalkan pembacaan</Button></>}
       {error && <InlineError>{error}</InlineError>}
+      {needsLogin && <a href="/auth/refresh?service=receipt">Masuk ulang pembaca struk</a>}
       <fieldset disabled={saving || reading} className="receipt-fields">
         <TextField label="Nama toko (opsional)" value={merchant} maxLength={120} onChange={event => { setMerchant(event.target.value); setError('') }} />
         <TextField label="Tanggal struk" type="date" max={getToday()} value={date} onChange={event => { setDate(event.target.value); setError('') }} />
@@ -108,7 +136,6 @@ export function ReceiptDialog({ onClose, recognizer = receiptRecognizer }: { onC
           <h3>Item {index + 1}</h3>
           <TextField label={`Nama item ${index + 1}`} maxLength={120} value={item.label} onChange={event => edit(item.id, { label: event.target.value })} />
           <TextField label={`Nominal item ${index + 1} (Rp)`} type="number" min="1" step="1" inputMode="numeric" value={item.amount} onChange={event => edit(item.id, { amount: event.target.value })} />
-          <label className="receipt-select">Kategori item {index + 1}<select value={item.categoryId} onChange={event => edit(item.id, { categoryId: event.target.value })}>{categories.map(category => <option key={category.id} value={category.id}>{category.name}</option>)}</select></label>
           <label className="receipt-select">Bucket item {index + 1}<select value={item.bucketId} onChange={event => edit(item.id, { bucketId: event.target.value })}>{buckets.map(bucket => <option key={bucket.id} value={bucket.id}>{bucket.name}</option>)}</select></label>
           <Button variant="ghost" onClick={() => { setItems(current => current.filter(row => row.id !== item.id)); setError('') }}>Hapus item {index + 1}</Button>
         </section>)}

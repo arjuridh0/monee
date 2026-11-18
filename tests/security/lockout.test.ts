@@ -4,7 +4,10 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import 'fake-indexeddb/auto'
 import { IDBFactory } from 'fake-indexeddb'
+import { openDB } from 'idb'
 import { openDatabase, resetDbSingleton } from '@/core/db/migrations'
+import { DB_NAME, DB_VERSION } from '@/core/db/schema'
+import type { MoneeDB } from '@/core/db/migrations'
 import {
   nextLockoutState, isLockedAt, lockoutRemainingSecondsAt,
   getLockoutState, recordFailedAttempt, resetLockout,
@@ -54,8 +57,7 @@ describe('nextLockoutState', () => {
 describe('persistensi lockout', () => {
   it('menghitung percobaan bersamaan dari dua koneksi tanpa kehilangan increment', async () => {
     const firstTab = await openDatabase()
-    resetDbSingleton()
-    const secondTab = await openDatabase()
+    const secondTab = await openDB(DB_NAME, DB_VERSION) as unknown as MoneeDB
     const results = await Promise.all([
       recordFailedAttempt(firstTab, NOW),
       recordFailedAttempt(secondTab, NOW),
@@ -67,8 +69,7 @@ describe('persistensi lockout', () => {
 
   it('menolak increment selama terkunci dan mengeskalasi sekali saat deadline berakhir', async () => {
     const firstTab = await openDatabase()
-    resetDbSingleton()
-    const secondTab = await openDatabase()
+    const secondTab = await openDB(DB_NAME, DB_VERSION) as unknown as MoneeDB
     await recordFailedAttempt(firstTab, NOW)
     await recordFailedAttempt(firstTab, NOW)
     await recordFailedAttempt(firstTab, NOW)

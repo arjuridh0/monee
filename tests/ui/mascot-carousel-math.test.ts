@@ -1,62 +1,24 @@
 import { describe, expect, it } from 'vitest'
-import {
-  CARD_GAP_PX, CARD_PEEK_RATIO, MAX_DEPTH_PX, MAX_ROTATION_DEG, MIN_SCALE,
-  cardMotion, cardStep, clamp, nearestIndex, snapTarget,
-} from '@/features/mascot/carousel-math'
+import { nearestIndex, swipeDirection } from '@/features/mascot/carousel-math'
 
-describe('mascot carousel math', () => {
-  it('clamps values to the given range', () => {
-    expect(clamp(-2, 0, 3)).toBe(0)
-    expect(clamp(1.5, 0, 3)).toBe(1.5)
-    expect(clamp(9, 0, 3)).toBe(3)
+describe('circular mascot selection', () => {
+  it('wraps signed indices without accumulating position over many cycles', () => {
+    for (let position = -300; position <= 300; position++) {
+      expect(nearestIndex(position, 3)).toBe(((position % 3) + 3) % 3)
+    }
+    expect(nearestIndex(2.6, 3)).toBe(0)
+    expect(nearestIndex(-0.8, 3)).toBe(2)
   })
-
-  it('rounds to the nearest index and clamps at both ends', () => {
-    expect(nearestIndex(-0.8, 3)).toBe(0)
-    expect(nearestIndex(0.49, 3)).toBe(0)
-    expect(nearestIndex(0.51, 3)).toBe(1)
-    expect(nearestIndex(2.6, 3)).toBe(2)
+  it('uses a safe origin for invalid positions or empty options', () => {
+    expect(nearestIndex(Number.NaN, 3)).toBe(0)
+    expect(nearestIndex(Infinity, 3)).toBe(0)
+    expect(nearestIndex(3, 0)).toBe(0)
+    expect(nearestIndex(3, 1)).toBe(0)
   })
-
-  it('keeps the active card frontal, full size, and opaque', () => {
-    expect(cardMotion(0)).toEqual({
-      offset: 0, rotateY: 0, depth: 0, scale: 1, opacity: 1,
-    })
-  })
-
-  it('pushes and rotates the first ring of side cards', () => {
-    const right = cardMotion(1)
-    expect(right.rotateY).toBe(MAX_ROTATION_DEG)
-    expect(right.depth).toBe(-MAX_DEPTH_PX)
-    expect(right.scale).toBeCloseTo(MIN_SCALE)
-    expect(right.opacity).toBeCloseTo(0.8)
-
-    const left = cardMotion(-1)
-    expect(left.rotateY).toBe(-MAX_ROTATION_DEG)
-    expect(left.depth).toBe(-MAX_DEPTH_PX)
-  })
-
-  it('fades cards beyond the first ring', () => {
-    const far = cardMotion(2)
-    expect(far.rotateY).toBe(MAX_ROTATION_DEG)
-    expect(far.depth).toBe(-2 * MAX_DEPTH_PX)
-    expect(far.scale).toBeCloseTo(MIN_SCALE)
-    expect(far.opacity).toBe(0.28)
-  })
-
-  it('snaps to the nearest card and lets a flick move one card', () => {
-    expect(snapTarget(0.2, 0, 3)).toBe(0)
-    expect(snapTarget(0.6, 0, 3)).toBe(1)
-    expect(snapTarget(0, 0.5, 3)).toBe(1)
-    expect(snapTarget(1.9, 0.9, 3)).toBe(2)
-  })
-
-  it('exposes a positive card gap', () => {
-    expect(CARD_GAP_PX).toBeGreaterThan(0)
-  })
-
-  it('keeps neighbouring cards peeking at every stage width', () => {
-    expect(cardStep(300)).toBeCloseTo(300 * CARD_PEEK_RATIO + CARD_GAP_PX)
-    expect(cardStep(300)).toBeLessThan(300 + CARD_GAP_PX)
+  it('only accepts intentional horizontal swipes', () => {
+    expect(swipeDirection(-80, 10)).toBe(1)
+    expect(swipeDirection(80, -10)).toBe(-1)
+    expect(swipeDirection(12, 2)).toBe(0)
+    expect(swipeDirection(-80, 100)).toBe(0)
   })
 })

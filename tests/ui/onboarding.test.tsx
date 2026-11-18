@@ -33,16 +33,15 @@ describe('first income', () => {
     expect(next).toHaveBeenCalledWith(null)
   })
 
-  it('requires positive whole rupiah and an income category, preserves the chosen date', async () => {
+  it('requires positive whole rupiah without category input and preserves the date', async () => {
     const next = vi.fn()
     const user = userEvent.setup()
     render(<IncomeStep income={null} categories={DEFAULT_CATEGORIES} onNext={next} busy={false} />)
     expect(screen.getByRole('button', { name: 'Catat & lanjut' })).toBeDisabled()
     await user.type(screen.getByLabelText('Nominal pemasukan (Rp)'), '1500000')
-    await user.selectOptions(screen.getByLabelText('Kategori pemasukan'), 'cat-freelance')
+    expect(screen.queryByLabelText('Kategori pemasukan')).not.toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Catat & lanjut' }))
-    expect(next).toHaveBeenCalledWith({ amount: 1500000, categoryId: 'cat-freelance', date: getToday(), note: '' })
-    expect(screen.getAllByRole('option')).toHaveLength(4)
+    expect(next).toHaveBeenCalledWith({ amount: 1500000, categoryId: 'cat-gaji', date: getToday(), note: '' })
   })
 })
 
@@ -74,6 +73,13 @@ describe('allocation setup', () => {
 })
 
 describe('PIN setup', () => {
+  it('allows continuing without a local device PIN', async () => {
+    const finish = vi.fn()
+    render(<PinStep onFinish={finish} busy={false} />)
+    await userEvent.click(screen.getByRole('button', { name: /tanpa PIN/i }))
+    expect(finish).toHaveBeenCalledWith()
+  })
+
   it('requires a matching six-digit PIN and acknowledgment of no recovery', async () => {
     const finish = vi.fn()
     render(<PinStep onFinish={finish} busy={false} />)

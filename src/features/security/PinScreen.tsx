@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { AlertCircle, LockKeyhole, ShieldCheck } from 'lucide-react'
+import { Brand } from '@/components/ui/Brand'
 import { CodeSlots } from '@/components/reactbits/CodeSlots'
 import { Button } from '@/components/ui/controls'
 import { MascotCanvas } from '@/features/mascot/MascotCanvas'
@@ -13,7 +14,6 @@ import './security.css'
 
 export function PinScreen({ onUnlock }: { onUnlock?: () => void }) {
   const profile = useMoneeStore(state => state.profile)
-  const setLocked = useMoneeStore(state => state.setLocked)
   const navigate = useNavigate()
   const [pin, setPin] = useState('')
   const [lockout, setLockout] = useState<LockoutState>({ attempts: 0, lockedUntil: 0 })
@@ -104,14 +104,13 @@ export function PinScreen({ onUnlock }: { onUnlock?: () => void }) {
       if (!canUnlock()) return
       await resetLockout(db, freshProfile)
       if (!canUnlock()) return
-      await useMoneeStore.getState().load()
+      await useMoneeStore.getState().unlockProfile(freshProfile, canUnlock)
       if (!canUnlock()) return
       const loadedProfile = useMoneeStore.getState().profile
       if (loadedProfile?.pinHash !== freshProfile.pinHash || loadedProfile.pinSalt !== freshProfile.pinSalt) {
         throw new Error('ERR_PROFILE_STALE')
       }
       setStatus('success')
-      setLocked(false)
       if (onUnlock) onUnlock()
       else navigate('/', { replace: true })
     } catch {
@@ -127,7 +126,7 @@ export function PinScreen({ onUnlock }: { onUnlock?: () => void }) {
   }
 
   return <section className="pin-screen" aria-labelledby="pin-title">
-    <div className="pin-brand"><LockKeyhole size={17} aria-hidden="true" /> Monee terkunci</div>
+    <div className="pin-brand"><Brand /><span className="sr-only">Monee terkunci</span></div>
     <div className="pin-mascot"><MascotCanvas mascotId={profile?.mascotId ?? 'mochi'}
       state={busy ? 'thinking' : error ? 'sad' : 'greeting'} size={190} /></div>
     <header className="pin-heading">

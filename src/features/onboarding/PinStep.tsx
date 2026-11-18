@@ -4,7 +4,7 @@ import { CodeSlots } from '@/components/reactbits/CodeSlots'
 import { Button } from '@/components/ui/controls'
 import { InlineError } from '@/components/ui/feedback'
 
-export function PinStep({ onFinish, busy }: { onFinish: (pin: string) => void; busy: boolean }) {
+export function PinStep({ onFinish, busy }: { onFinish: (pin?: string) => void; busy: boolean }) {
   const [pin, setPin] = useState('')
   const [confirmation, setConfirmation] = useState('')
   const [understood, setUnderstood] = useState(false)
@@ -21,11 +21,12 @@ export function PinStep({ onFinish, busy }: { onFinish: (pin: string) => void; b
     {mismatch && <InlineError>PIN belum sama. Periksa ulang, ya.</InlineError>}
     <div className="onboarding-warning"><ShieldCheck size={24} aria-hidden="true" /><div>
       <strong>PIN tidak bisa dipulihkan</strong>
-      <p>PIN ini satu-satunya kunci datamu. Lupa = data tidak bisa dibuka. Export backup rutin ya!</p>
+      <p>PIN mengunci tampilan Monee, tetapi tidak mengenkripsi data di perangkat. Ingat PIN dan simpan backup terenkripsi secara rutin.</p>
     </div></div>
     <label className="onboarding-acknowledge"><input type="checkbox" checked={understood} disabled={busy}
       onChange={event => setUnderstood(event.target.checked)} /><span>Aku ngerti, dan akan mengingat PIN-ku.</span></label>
     <Button type="submit" disabled={pin.length !== 6 || pin !== confirmation || !understood || busy} loading={busy}>Selesai &amp; masuk</Button>
-    <p className="onboarding-private">Tersimpan di perangkat ini. Hanya kamu yang memegang kuncinya.</p>
+    <Button type="button" variant="ghost" disabled={busy} onClick={() => onFinish()}>Lanjut tanpa PIN</Button>
+    <p className="onboarding-private">PIN hanya mengunci perangkat ini. Akun tetap dilindungi oleh sesi masukmu.</p>
   </form>
 }

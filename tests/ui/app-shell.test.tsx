@@ -1,16 +1,18 @@
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { AppShell } from '@/app/AppShell'
 import { useMoneeStore } from '@/store'
 
 vi.mock('@/features/mascot/MascotCanvas', () => ({ MascotCanvas: ({ state }: { state: string }) => <span role="img" aria-label="Maskot" data-state={state} /> }))
 beforeEach(() => {
+  vi.spyOn(window, 'scrollTo').mockImplementation(() => {})
   useMoneeStore.setState({ ...useMoneeStore.getInitialState(), isLoaded: true, isLocked: false,
     profile: { id: 'profile', name: 'Arju', mascotId: 'mochi', pinHash: 'hash', pinSalt: 'salt',
       periodStartDay: 1, defaultBucketId: 'bucket-needs', createdAt: 0 } }, true)
 })
+afterEach(() => { vi.restoreAllMocks() })
 
 const shell = (path: string) =>
   render(<MemoryRouter initialEntries={[path]} future={{ v7_startTransition: true, v7_relativeSplatPath: true }}><AppShell /></MemoryRouter>)
@@ -18,18 +20,20 @@ const shell = (path: string) =>
 describe('AppShell routing', () => {
   it('keeps the developer playground unavailable in production', async () => {
     vi.stubEnv('DEV', false)
+    vi.stubGlobal('fetch', vi.fn(async () => Response.json({ error: 'signed out' }, { status: 401 })))
     try {
       shell('/dev/ui')
-      expect(await screen.findByRole('heading', { name: 'Beranda', level: 1 })).toBeVisible()
+      expect(await screen.findByRole('heading', { name: 'Masuk ke Monee' })).toBeVisible()
       expect(screen.queryByRole('heading', { name: 'Ruang coba UI' })).not.toBeInTheDocument()
-    } finally { vi.unstubAllEnvs() }
+    } finally { vi.unstubAllEnvs(); vi.unstubAllGlobals() }
   })
   it('shows a recoverable data error with a mascot, code and one retry action', async () => {
     const user = userEvent.setup()
     useMoneeStore.setState({ isLoaded: false, load: vi.fn().mockRejectedValueOnce(new Error('IndexedDB unavailable'))
       .mockImplementationOnce(async () => { useMoneeStore.setState({ isLoaded: true }) }) })
     shell('/')
-    expect(await screen.findByText('ERR_DATA_READ')).toBeVisible()
+    expect(await screen.findByRole('heading', { name: 'Pengaturan belum bisa dibuka' })).toBeVisible()
+    expect(screen.queryByText('ERR_DATA_READ')).not.toBeInTheDocument()
     expect(screen.getByRole('img', { name: 'Maskot' })).toHaveAttribute('data-state', 'sad')
     expect(screen.getAllByRole('button', { name: 'Coba lagi', exact: true })).toHaveLength(1)
     expect(screen.getByText(/Data yang sudah tersimpan tetap ada/)).toBeVisible()
@@ -57,6 +61,29 @@ describe('AppShell routing', () => {
 })
 
 describe('root navigation', () => {
+  it('opens voice by default from Catat, with manual and receipt paths still available', async () => {
+    shell('/')
+    await userEvent.click(screen.getByRole('button', { name: 'Tambah transaksi' }))
+    expect(await screen.findByRole('dialog', { name: 'Catat dengan suara' })).toBeVisible()
+    expect(await screen.findByRole('button', { name: 'Mulai rekam' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'Scan struk' })).toBeVisible()
+    await userEvent.click(screen.getByRole('button', { name: 'Ketik manual' }))
+    expect(await screen.findByRole('dialog', { name: 'Tambah transaksi' })).toBeVisible()
+  })
+  it('immediately shows only the latest route during rapid tab changes', async () => {
+    const scroll = vi.spyOn(window, 'scrollTo').mockImplementation(() => {})
+    try {
+      const { container } = shell('/')
+      for (const [tab, title] of [['Tabungan', 'Tabungan'], ['Riwayat', 'Riwayat'], ['Home', 'Beranda'], ['Atur', 'Atur']]) {
+        await act(async () => { fireEvent.click(screen.getByRole('link', { name: tab, exact: true })) })
+        expect(screen.getByRole('heading', { name: title, level: 1 })).toBeInTheDocument()
+        expect(container.querySelectorAll('.tab-content')).toHaveLength(1)
+        expect(container.querySelectorAll('.nav-active-pill')).toHaveLength(1)
+        expect(screen.getByRole('link', { name: tab, exact: true })).toHaveAttribute('aria-current', 'page')
+      }
+    } finally { scroll.mockRestore() }
+  })
+
   it('mounts live analytics beside the root content', () => {
     shell('/')
     expect(screen.getByRole('complementary', { name: 'Ringkasan tambahan' })).toHaveTextContent('Analitik')

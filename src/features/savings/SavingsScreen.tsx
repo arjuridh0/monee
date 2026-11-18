@@ -27,7 +27,7 @@ export function SavingsScreen() {
   const hasActivity = sweeps.length > 0 || transactions.some(tx => !tx.deleted && (tx.type === 'savings_deposit' || tx.type === 'savings_expense'))
   const locked = snapshot?.locked ?? false
   return <section className="savings-screen">
-    <header className="savings-header"><p>Sedikit demi sedikit, jadi berarti.</p><h1>Tabungan</h1></header>
+    <header className="savings-header"><h1>Tabungan</h1><p>Setoran, penggunaan, dan tujuanmu</p></header>
     <section aria-label="Total tabungan">
       <Card className="savings-hero"><div><p>Total tabungan</p>
         <strong className="font-tabular">{rupiah(snapshot?.savings.totalSavings ?? 0)}</strong>
@@ -38,7 +38,7 @@ export function SavingsScreen() {
     </section>
     {!hasActivity && <section className="savings-empty" aria-label="Mulai menabung">
       <div className="savings-empty-mascot"><MascotCanvas mascotId={mascotId} state="idle" size={144} /></div>
-      <h2>Mulai tabunganmu</h2><p>Satu setoran kecil bisa jadi awal rencana besarmu. Sisa saldo periode juga akan terkumpul di sini saat periode ditutup.</p>
+      <h2>Mulai tabunganmu</h2><p>Setor dana dari Allocation. Saat periode ditutup, saldo tersisa masuk ke Sisa.</p>
       {(snapshot?.balance.balance ?? 0) > 0 ? <Button disabled={locked} onClick={() => setDepositing(true)}>Setor pertama</Button>
         : <Link className="ui-button ui-button--primary" to="/">Catat pemasukan</Link>}
     </section>}

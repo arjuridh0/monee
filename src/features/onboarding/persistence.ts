@@ -8,7 +8,7 @@ export interface CompleteOnboardingInput {
   name: string
   buckets: Bucket[]
   mascotId: MascotId
-  pin: string
+  pin?: string
   income?: {
     amount: number
     categoryId: string
@@ -27,7 +27,7 @@ function validateInput(input: CompleteOnboardingInput): void {
   if (!input.name.trim() || input.name.trim().length > 40) {
     throw new Error('Nama wajib diisi, maksimal 40 karakter.')
   }
-  if (!/^\d{6}$/.test(input.pin)) throw new Error('PIN harus terdiri dari 6 angka.')
+  if (input.pin !== undefined && !/^\d{6}$/.test(input.pin)) throw new Error('PIN harus terdiri dari 6 angka.')
   if (!['mochi', 'luna', 'bumi'].includes(input.mascotId)) {
     throw new Error('Pilih maskot yang tersedia.')
   }
@@ -66,7 +66,7 @@ export async function completeOnboarding(
   // Snapshot caller data before the asynchronous hash so edits cannot change the commit.
   const draft: CompleteOnboardingInput = {
     name: input.name.trim(),
-    pin: input.pin,
+    ...(input.pin ? { pin: input.pin } : {}),
     mascotId: input.mascotId,
     buckets: input.buckets.map(bucket => ({ ...bucket })),
     ...(input.income ? { income: {
@@ -79,8 +79,8 @@ export async function completeOnboarding(
   validateInput(draft)
 
   // Web Crypto must finish before opening IDB's short-lived transaction.
-  const pinSalt = generateSalt()
-  const pinHash = await hashPin(draft.pin, pinSalt)
+  const pinSalt = draft.pin ? generateSalt() : ''
+  const pinHash = draft.pin ? await hashPin(draft.pin, pinSalt) : ''
   const now = Date.now()
   const defaultBucket = [...draft.buckets].sort((a, b) => a.sortOrder - b.sortOrder)
     .find(bucket => !bucket.isSavings)!

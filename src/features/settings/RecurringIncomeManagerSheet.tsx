@@ -3,7 +3,8 @@ import { Pencil, Plus, Trash2 } from 'lucide-react'
 import { Button, TextField, Toggle } from '@/components/ui/controls'
 import { Dialog } from '@/components/ui/Dialog'
 import { InlineError } from '@/components/ui/feedback'
-import type { Category, RecurringIncome } from '@/core/finance/types'
+import type { RecurringIncome } from '@/core/finance/types'
+import { defaultCategoryId } from '@/core/finance/transaction-presentation'
 import { useRupiah } from '@/hooks/useRupiah'
 import { useMoneeStore } from '@/store'
 
@@ -25,7 +26,6 @@ export function RecurringIncomeManagerSheet({ onClose }: { onClose: () => void }
   const [busy, setBusy] = useState(false)
   const formView = view.kind === 'edit' || view.kind === 'add' ? view : null
   const title = view.kind === 'edit' || view.kind === 'add' ? 'Template pemasukan' : 'Pemasukan Rutin'
-  const incomeCategories = categories.filter(category => category.type === 'income')
 
   function update(patch: Partial<RecurringIncome>) {
     setView(current => current.kind === 'edit' || current.kind === 'add'
@@ -35,7 +35,7 @@ export function RecurringIncomeManagerSheet({ onClose }: { onClose: () => void }
   function add() {
     setView({ kind: 'add', recurring: {
       id: '', name: '', amount: 0, dayOfMonth: 25,
-      categoryId: incomeCategories[0]?.id ?? '', isActive: true, createdAt: Date.now(),
+      categoryId: defaultCategoryId(categories, 'income'), isActive: true, createdAt: Date.now(),
     } })
     setError('')
     setStatus('')
@@ -98,11 +98,10 @@ export function RecurringIncomeManagerSheet({ onClose }: { onClose: () => void }
       {error && <InlineError>{error}</InlineError>}
       {ordered.length > 0 ? <ul className="settings-recurring-list">
         {ordered.map(recurring => {
-          const category = categories.find(item => item.id === recurring.categoryId)
           return <li className="settings-recurring-row" key={recurring.id}>
             <div className="settings-recurring-copy">
               <strong>{recurring.name}</strong>
-              <span>{rupiah(recurring.amount)} · tgl {recurring.dayOfMonth} · {category?.name ?? 'Kategori tidak tersedia'}</span>
+              <span>{rupiah(recurring.amount)} · tgl {recurring.dayOfMonth}</span>
               <small>{recurring.isActive ? 'Aktif' : 'Nonaktif'}</small>
             </div>
             <button type="button" className="settings-category-edit" aria-label={`Edit template ${recurring.name}`}
@@ -124,12 +123,6 @@ export function RecurringIncomeManagerSheet({ onClose }: { onClose: () => void }
         value={formView.recurring.amount || ''} onChange={event => { update({ amount: Number(event.target.value) }); setError('') }} />
       <TextField label="Tanggal pemasukan (1–28)" type="number" inputMode="numeric" min={1} max={28} step={1} disabled={busy}
         value={formView.recurring.dayOfMonth} onChange={event => { update({ dayOfMonth: Number(event.target.value) }); setError('') }} />
-      <label className="ui-field"><span>Kategori pemasukan</span>
-        <select aria-label="Kategori pemasukan" value={formView.recurring.categoryId} disabled={busy || incomeCategories.length === 0}
-          onChange={event => { update({ categoryId: event.target.value }); setError('') }}>
-          {incomeCategories.map((category: Category) => <option key={category.id} value={category.id}>{category.name}</option>)}
-        </select>
-      </label>
       <Toggle label="Aktifkan template" checked={formView.recurring.isActive} disabled={busy}
         onChange={isActive => update({ isActive })} />
       {error && <InlineError>{error}</InlineError>}

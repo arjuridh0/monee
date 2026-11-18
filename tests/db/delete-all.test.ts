@@ -6,7 +6,7 @@ import { openDatabase, resetDbSingleton } from '@/core/db/migrations'
 import { profileRepo, seedDefaultData } from '@/core/db/repositories'
 import { STORES, type StoreName } from '@/core/db/schema'
 import { hashPin } from '@/core/security/pin'
-import { deleteAllData, DeleteAllDataError } from '@/features/settings/delete-all'
+import { deleteAllData } from '@/features/settings/delete-all'
 import type { Profile } from '@/core/finance/types'
 
 let profile: Profile
@@ -26,6 +26,14 @@ beforeEach(async () => {
 afterEach(() => { vi.unstubAllGlobals(); resetDbSingleton() })
 
 describe('delete all data', () => {
+  it('lets an authenticated account without a device PIN delete its ledger', async () => {
+    const db = await openDatabase()
+    await profileRepo.save(db, { ...profile, pinHash: '', pinSalt: '' })
+    await deleteAllData(db, { expectedPinHash: '' })
+    expect(await Promise.all(Object.values(STORES).map(name => db.getAll(name as StoreName))))
+      .toEqual(Object.values(STORES).map(() => []))
+  })
+
   it('rejects a wrong PIN without clearing any store', async () => {
     const db = await openDatabase()
     const before = await Promise.all(Object.values(STORES).map(name => db.getAll(name as StoreName)))

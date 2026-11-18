@@ -1,5 +1,5 @@
 import { webcrypto } from 'node:crypto'
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import 'fake-indexeddb/auto'
@@ -12,6 +12,7 @@ import type { Profile, Transaction } from '@/core/finance/types'
 import { useMoneeStore } from '@/store'
 import { resetPwaState } from '@/pwa/pwa-state'
 import { SettingsScreen } from '@/features/settings/SettingsScreen'
+import { exportBackup } from '@/features/settings/backup'
 
 vi.mock('@/features/mascot/MascotCarousel', () => ({
   MascotCarousel: ({ onApply }: { onApply: (id: 'luna') => void }) => (
@@ -56,15 +57,26 @@ const row = (name: RegExp) => screen.getByRole('button', { name })
 
 describe('settings screen', () => {
   it('explains managed access and privacy without asking for credentials', async () => {
+    const fetcher = vi.fn<typeof fetch>().mockImplementation(async () => new Response(null, { status: 401 }))
+    vi.stubGlobal('fetch', fetcher)
     render(<SettingsScreen />)
     fireEvent.click(row(/^Layanan suara/))
+    await screen.findByText(/server Monee.*Groq/)
     const dialog = await screen.findByRole('dialog', { name: 'Layanan suara' })
     expect(within(dialog).getByText(/server Monee.*Groq/)).toBeVisible()
     expect(within(dialog).getByText(/Layanan suara disediakan pengelola/)).toBeVisible()
-    expect(within(dialog).getByRole('link', { name: 'Masuk ulang layanan suara' })).toHaveAttribute('href', '/auth/refresh')
-    expect(within(dialog).getByRole('link', { name: 'Masuk ulang layanan suara' })).not.toHaveAttribute('target')
+    const login = await within(dialog).findByRole('link', { name: 'Masuk ulang layanan suara' })
+    expect(login).toHaveAttribute('href', '/auth/refresh')
+    expect(login).not.toHaveAttribute('target')
     expect(within(dialog).queryByRole('textbox')).not.toBeInTheDocument()
     expect(within(dialog).queryByLabelText(/API key/i)).not.toBeInTheDocument()
+    expect(within(dialog).getByRole('status')).toHaveTextContent('Akses layanan suara perlu diverifikasi.')
+    expect(within(dialog).getByRole('status')).toHaveAccessibleDescription(/hanya memeriksa konfigurasi server, bukan koneksi atau keberhasilan penyedia AI/)
+    expect(fetcher).toHaveBeenCalledOnce()
+    expect(fetcher.mock.calls[0]).toEqual(['/api/transcribe?check=ready', expect.objectContaining({
+      method: 'GET', redirect: 'manual', credentials: 'same-origin', cache: 'no-store',
+    })])
+    expect(fetcher.mock.calls[0]![1]?.body).toBeUndefined()
   })
 
   it('shows the profile, groups, current values, and disabled future rows', () => {
@@ -77,8 +89,7 @@ describe('settings screen', () => {
     expect(row(/^Ganti PIN/)).toHaveTextContent('6 digit')
     expect(row(/^Alokasi Bucket/)).toBeEnabled()
     expect(row(/^Alokasi Bucket/)).toHaveTextContent('5 bucket')
-    expect(row(/^Kelola Kategori/)).toBeEnabled()
-    expect(row(/^Kelola Kategori/)).toHaveTextContent('14 kategori')
+    expect(screen.queryByRole('button', { name: /^Kelola Kategori/ })).not.toBeInTheDocument()
     expect(row(/^Pemasukan Rutin/)).toBeEnabled()
     for (const label of [
       /^Buka dengan sidik jari/,
@@ -86,7 +97,7 @@ describe('settings screen', () => {
     expect(row(/^Layanan suara/)).toBeEnabled()
     expect(row(/^Export Backup/)).toBeEnabled()
     expect(row(/^Import Backup/)).toBeEnabled()
-    expect(screen.getByText('Monee v0.1.0 \u00b7 Semua data tersimpan di perangkat ini')).toBeVisible()
+    expect(screen.getByText('Monee v0.1.0 \u00b7 Data akun tersinkron antarperangkat')).toBeVisible()
   })
 
   it('keeps app and storage controls inside Atur instead of above every screen', () => {
@@ -122,6 +133,9 @@ describe('settings screen', () => {
     await user.click(row(/^Export Backup/))
     const exportDialog = await screen.findByRole('dialog', { name: 'Export Backup' })
     expect(within(exportDialog).getByText(/File berisi data sensitif/)).toBeVisible()
+    expect(within(exportDialog).getByRole('switch', { name: /Enkripsi/ })).toBeChecked()
+    expect(within(exportDialog).getByRole('button', { name: 'Unduh backup JSON' })).toBeDisabled()
+    await user.type(within(exportDialog).getByLabelText('Passphrase (minimal 8 karakter)'), 'backup test phrase')
     expect(within(exportDialog).getByRole('button', { name: 'Unduh backup JSON' })).toBeEnabled()
     await user.click(within(exportDialog).getByRole('button', { name: 'Tutup' }))
 
@@ -134,6 +148,7 @@ describe('settings screen', () => {
   })
 
   it('requires the current PIN and explicit confirmation, then clears data and session state', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(null, { status: 204 })))
     const user = userEvent.setup()
     const db = await openDatabase()
     await db.put(STORES.settings, { key: 'private', value: 'keep before confirmation' })
@@ -155,90 +170,33 @@ describe('settings screen', () => {
       .toEqual(Object.values(STORES).map(() => []))
   })
 
-  it('shows all 14 seeded categories split by transaction type', async () => {
-    const user = userEvent.setup()
-    render(<SettingsScreen />)
-    await user.click(row(/^Kelola Kategori/))
-    const dialog = await screen.findByRole('dialog', { name: 'Kelola Kategori' })
-
-    expect(within(dialog).getByRole('heading', { name: 'Pengeluaran' })).toBeVisible()
-    expect(within(dialog).getByRole('heading', { name: 'Pemasukan' })).toBeVisible()
-    expect(within(dialog).getAllByRole('button', { name: /^Edit kategori / })).toHaveLength(14)
-    expect(within(dialog).getByRole('button', { name: 'Edit kategori Tabungan' })).toBeVisible()
-    expect(within(dialog).queryByRole('button', { name: 'Hapus kategori Tabungan' })).not.toBeInTheDocument()
-  })
-
-  it('edits a category name, Lucide icon, and color and persists them', async () => {
-    const user = userEvent.setup()
+  it('shows file loading and restores the latest selected backup when an older file finishes late', async () => {
     const db = await openDatabase()
+    const pinSalt = 'ab'.repeat(16)
+    await profileRepo.save(db, { ...profile, pinSalt, pinHash: await hashPin('123456', pinSalt) })
+    const contents = JSON.parse(await exportBackup(db))
+    const oldContents = JSON.stringify(contents)
+    contents.stores.profile[0].name = 'Backup terbaru'
+    const latestContents = JSON.stringify(contents)
+    let oldRead!: (value: string) => void
+    let newRead!: (value: string) => void
+    const oldFile = new File([''], 'lama.json', { type: 'application/json' })
+    const newFile = new File([''], 'baru.json', { type: 'application/json' })
+    Object.defineProperty(oldFile, 'text', { value: () => new Promise<string>(resolve => { oldRead = resolve }) })
+    Object.defineProperty(newFile, 'text', { value: () => new Promise<string>(resolve => { newRead = resolve }) })
     render(<SettingsScreen />)
-    await user.click(row(/^Kelola Kategori/))
-    const manager = await screen.findByRole('dialog', { name: 'Kelola Kategori' })
-    await user.click(within(manager).getByRole('button', { name: 'Edit kategori Makan' }))
-
-    const editor = screen.getByRole('dialog', { name: 'Ubah kategori' })
-    const name = within(editor).getByRole('textbox', { name: 'Nama kategori' })
-    await user.clear(name)
-    await user.type(name, 'Makanan')
-    await user.click(within(editor).getByRole('radio', { name: 'coffee' }))
-    await user.click(within(editor).getByRole('radio', { name: '#F3E3D3' }))
-    await user.click(within(editor).getByRole('button', { name: 'Simpan kategori' }))
-
-    await waitFor(() => expect(useMoneeStore.getState().categories.find(category => category.id === 'cat-makan'))
-      .toMatchObject({ name: 'Makanan', icon: 'coffee', color: '#F3E3D3' }))
-    expect((await categoryRepo.getAll(db)).find(category => category.id === 'cat-makan'))
-      .toMatchObject({ id: 'cat-makan', name: 'Makanan', icon: 'coffee', color: '#F3E3D3' })
-    expect(await screen.findByRole('dialog', { name: 'Kelola Kategori' })).toBeVisible()
-  })
-
-  it('creates and deletes a custom category after confirmation', async () => {
-    const user = userEvent.setup()
-    const db = await openDatabase()
-    render(<SettingsScreen />)
-    await user.click(row(/^Kelola Kategori/))
-    let manager = await screen.findByRole('dialog', { name: 'Kelola Kategori' })
-    await user.click(within(manager).getByRole('button', { name: 'Tambah kategori pengeluaran' }))
-
-    let editor = screen.getByRole('dialog', { name: 'Tambah kategori' })
-    await user.type(within(editor).getByRole('textbox', { name: 'Nama kategori' }), 'Hobi')
-    await user.click(within(editor).getByRole('radio', { name: 'target' }))
-    await user.click(within(editor).getByRole('button', { name: 'Tambah kategori', exact: true }))
-
-    manager = await screen.findByRole('dialog', { name: 'Kelola Kategori' })
-    expect(within(manager).getByRole('button', { name: 'Edit kategori Hobi' })).toBeVisible()
-    expect(row(/^Kelola Kategori/)).toHaveTextContent('15 kategori')
-    expect((await categoryRepo.getAll(db)).some(category => category.name === 'Hobi' && !category.isDefault)).toBe(true)
-
-    await user.click(within(manager).getByRole('button', { name: 'Hapus kategori Hobi' }))
-    expect(within(manager).getByText('Hapus kategori Hobi?')).toBeVisible()
-    await user.click(within(manager).getByRole('button', { name: 'Hapus kategori', exact: true }))
-    manager = await screen.findByRole('dialog', { name: 'Kelola Kategori' })
-    expect(within(manager).queryByRole('button', { name: 'Edit kategori Hobi' })).not.toBeInTheDocument()
-    await waitFor(() => expect(row(/^Kelola Kategori/)).toHaveTextContent('14 kategori'))
-    expect(await categoryRepo.getAll(db)).toHaveLength(14)
-  })
-
-  it('keeps a category in place when it is already used in transaction history', async () => {
-    const user = userEvent.setup()
-    const db = await openDatabase()
-    const custom = { id: 'cat-hobi', name: 'Hobi', icon: 'target', color: '#F3E3D3', type: 'expense' as const, isDefault: false }
-    await categoryRepo.save(db, custom)
-    const now = Date.now()
-    await transactionRepo.save(db, {
-      id: 'tx-hobi', type: 'expense', amount: 5_000, date: '2026-10-25', categoryId: custom.id,
-      bucketId: 'bucket-needs', deleted: false, refundedAmount: 0, createdAt: now, updatedAt: now,
-    })
-    useMoneeStore.setState(state => ({ ...state, categories: [...state.categories, custom] }))
-
-    render(<SettingsScreen />)
-    await user.click(row(/^Kelola Kategori/))
-    const manager = await screen.findByRole('dialog', { name: 'Kelola Kategori' })
-    await user.click(within(manager).getByRole('button', { name: 'Hapus kategori Hobi' }))
-    await user.click(within(manager).getByRole('button', { name: 'Hapus kategori', exact: true }))
-
-    expect(await within(manager).findByRole('alert')).toHaveTextContent('Kategori sudah dipakai transaksi')
-    expect(await within(manager).findByRole('button', { name: 'Edit kategori Hobi' })).toBeVisible()
-    expect((await categoryRepo.getAll(db)).some(category => category.id === custom.id)).toBe(true)
+    fireEvent.click(row(/^Import Backup/))
+    const input = screen.getByLabelText('File backup JSON')
+    fireEvent.change(input, { target: { files: [oldFile] } })
+    expect(screen.getByRole('status', { name: 'Membaca file backup' })).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Validasi & pulihkan' })).toBeDisabled()
+    fireEvent.change(input, { target: { files: [newFile] } })
+    await act(async () => { newRead(latestContents) })
+    await act(async () => { oldRead(oldContents) })
+    expect(screen.queryByRole('status', { name: 'Membaca file backup' })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('checkbox', { name: /Saya paham seluruh data/ }))
+    fireEvent.click(screen.getByRole('button', { name: 'Validasi & pulihkan' }))
+    await waitFor(() => expect(useMoneeStore.getState().profile?.name).toBe('Backup terbaru'))
   })
 
   it('creates, edits, deactivates, and deletes recurring income without removing recorded history', async () => {
@@ -255,7 +213,7 @@ describe('settings screen', () => {
     const dueDay = within(editor).getByRole('spinbutton', { name: 'Tanggal pemasukan (1–28)' })
     await user.clear(dueDay)
     await user.type(dueDay, '1')
-    await user.selectOptions(within(editor).getByRole('combobox', { name: 'Kategori pemasukan' }), 'cat-gaji')
+    expect(within(editor).queryByRole('combobox', { name: 'Kategori pemasukan' })).not.toBeInTheDocument()
     await user.click(within(editor).getByRole('button', { name: 'Tambah template', exact: true }))
 
     manager = await screen.findByRole('dialog', { name: 'Pemasukan Rutin' })
@@ -375,6 +333,9 @@ describe('settings screen', () => {
     render(<SettingsScreen />)
     await user.click(row(/^Alokasi Bucket/))
     const dialog = await screen.findByRole('dialog', { name: 'Alokasi Bucket' })
+    const name = within(dialog).getByLabelText('Nama bucket 1')
+    await user.clear(name)
+    await user.type(name, 'Rumah')
     await user.click(within(dialog).getByRole('button', { name: 'Custom sendiri' }))
 
     const needs = within(dialog).getByLabelText('Persentase Kebutuhan Pokok')
@@ -392,7 +353,7 @@ describe('settings screen', () => {
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
     const stored = (await bucketRepo.getAll(db)).sort((a, b) => a.sortOrder - b.sortOrder)
     expect(stored.find(bucket => bucket.id === 'bucket-needs'))
-      .toMatchObject({ allocPercent: 35, allowOverbudget: true })
+      .toMatchObject({ name: 'Rumah', allocPercent: 35, allowOverbudget: true })
     expect(stored.find(bucket => bucket.id === 'bucket-fun')).toMatchObject({ allocPercent: 10 })
     expect(useMoneeStore.getState().buckets.find(bucket => bucket.id === 'bucket-needs'))
       .toMatchObject({ allocPercent: 35, allowOverbudget: true })
@@ -420,7 +381,7 @@ describe('settings screen', () => {
     await bucketRepo.saveAll(db, newer)
 
     await user.click(within(dialog).getByRole('button', { name: 'Simpan alokasi' }))
-    expect(await screen.findByText('Alokasi berubah di tab lain. Muat ulang Monee.')).toBeVisible()
+    expect(await screen.findByText(/Bucket berubah di tab lain/)).toBeVisible()
     expect(within(dialog).getByRole('button', { name: 'Simpan alokasi' })).toBeEnabled()
     const stored = (await bucketRepo.getAll(db)).sort((a, b) => a.sortOrder - b.sortOrder)
     expect(stored.map(({ id, allocPercent, allowOverbudget }) => ({ id, allocPercent, allowOverbudget })))
@@ -436,7 +397,7 @@ describe('settings screen', () => {
     fireEvent.change(screen.getByLabelText('PIN sekarang'), { target: { value: '123456' } })
     fireEvent.change(screen.getByLabelText('PIN baru'), { target: { value: '654321' } })
     fireEvent.change(screen.getByLabelText('Ulangi PIN baru'), { target: { value: '654321' } })
-    await user.click(screen.getByRole('button', { name: 'Simpan PIN' }))
+    await user.click(screen.getByRole('button', { name: 'Simpan PIN baru' }))
 
     expect(await screen.findByText('PIN berhasil diganti.')).toBeVisible()
     const stored = await profileRepo.get(db)
@@ -452,7 +413,7 @@ describe('settings screen', () => {
     fireEvent.change(screen.getByLabelText('PIN sekarang'), { target: { value: '999999' } })
     fireEvent.change(screen.getByLabelText('PIN baru'), { target: { value: '654321' } })
     fireEvent.change(screen.getByLabelText('Ulangi PIN baru'), { target: { value: '654321' } })
-    await user.click(screen.getByRole('button', { name: 'Simpan PIN' }))
+    await user.click(screen.getByRole('button', { name: 'Simpan PIN baru' }))
 
     expect(await screen.findByText('PIN sekarang belum cocok.')).toBeVisible()
     const stored = await profileRepo.get(db)
@@ -467,12 +428,12 @@ describe('settings screen', () => {
     fireEvent.change(screen.getByLabelText('PIN sekarang'), { target: { value: '123456' } })
     fireEvent.change(screen.getByLabelText('PIN baru'), { target: { value: '654321' } })
     fireEvent.change(screen.getByLabelText('Ulangi PIN baru'), { target: { value: '111111' } })
-    await user.click(screen.getByRole('button', { name: 'Simpan PIN' }))
+    await user.click(screen.getByRole('button', { name: 'Simpan PIN baru' }))
     expect(await screen.findByText('PIN belum sama. Periksa ulang, ya.')).toBeVisible()
 
     fireEvent.change(screen.getByLabelText('PIN baru'), { target: { value: '123456' } })
     fireEvent.change(screen.getByLabelText('Ulangi PIN baru'), { target: { value: '123456' } })
-    await user.click(screen.getByRole('button', { name: 'Simpan PIN' }))
+    await user.click(screen.getByRole('button', { name: 'Simpan PIN baru' }))
     expect(await screen.findByText('PIN baru harus berbeda dari PIN sekarang.')).toBeVisible()
     expect(await profileRepo.get(db)).toEqual(profile)
   })
@@ -482,6 +443,6 @@ describe('settings screen', () => {
     render(<SettingsScreen />)
     await user.click(row(/^Tentang Monee/))
     expect(await screen.findByRole('dialog', { name: 'Tentang Monee' })).toBeVisible()
-    expect(screen.getByText('Semua data tersimpan di perangkat ini.')).toBeVisible()
+    expect(screen.getByText('Ledger akun tersinkron antarperangkat. PIN, jika dipakai, hanya mengunci perangkat ini.')).toBeVisible()
   })
 })

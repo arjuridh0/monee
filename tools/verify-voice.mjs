@@ -1,12 +1,15 @@
+import { updateReport } from './lib/report.mjs'
 import { chromium } from 'playwright'
 import assert from 'node:assert/strict'
-import { writeFile } from 'node:fs/promises'
-import { resolve } from 'node:path'
-import { serveProduction, outputFolder } from './lib/production.mjs'
+import { serveProduction } from './lib/production.mjs'
+import { installQaAccount } from './lib/qa-account.mjs'
+
+const qaAccountId = `acct_${'a'.repeat(64)}`
+const qaDatabaseName = `monee-db-${qaAccountId}`
 
 // Production assets, a disposable browser profile, fake audio and an intercepted managed transcription response.
 // No real key, microphone or external request is used by this harness.
-const host = await serveProduction(), output = await outputFolder('voice')
+const host = await serveProduction()
 const base = host.base
 const browser = await chromium.launch({ headless: true, channel: process.env.MONEE_BROWSER ?? 'msedge' })
 const report = { ok: false, layouts: [], errors: [], checks: {} }
@@ -20,12 +23,11 @@ async function capture(page, name) {
   assert.ok(layout.scroll <= layout.width, `${name}: overflow`)
   assert.deepEqual(layout.small, [], `${name}: touch targets under 44px`)
   report.layouts.push({ name, ...layout })
-  await page.screenshot({ path: resolve(output, `${name}.png`) })
 }
 async function seed(page) {
   await page.goto(base); await page.getByLabel('Nama panggilan').waitFor()
-  await page.evaluate(async () => {
-    const db = await new Promise(done => { const request = indexedDB.open('monee-db'); request.onsuccess = () => done(request.result) })
+  await page.evaluate(async databaseName => {
+    const db = await new Promise(done => { const request = indexedDB.open(databaseName); request.onsuccess = () => done(request.result) })
     const salt = 'ab'.repeat(16)
     const pinHash = [...new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(`123456${salt}`)))].map(byte => byte.toString(16).padStart(2, '0')).join('')
     const today = new Date(Date.now() + 7 * 3600000).toISOString().slice(0, 10)
@@ -35,25 +37,25 @@ async function seed(page) {
     tx.objectStore('transactions').put({ ...common, id: 'salary', type: 'income', amount: 5000000, categoryId: 'cat-gaji' })
     tx.objectStore('transactions').put({ ...common, id: 'deposit', type: 'savings_deposit', amount: 1000000, categoryId: 'cat-tabungan', bucketId: 'bucket-savings' })
     await new Promise((done, fail) => { tx.oncomplete = done; tx.onerror = () => fail(tx.error) }); db.close()
-  })
+  }, qaDatabaseName)
   await page.reload(); await page.getByLabel('PIN 6 digit', { exact: true }).fill('123456')
   await page.getByRole('navigation', { name: 'Navigasi utama' }).waitFor()
 }
 async function voice(page) {
   await page.getByRole('button', { name: 'Tambah transaksi', exact: true }).click()
-  await page.getByRole('button', { name: 'Catat dengan suara', exact: true }).click()
   await page.getByRole('dialog', { name: 'Catat dengan suara' }).waitFor()
 }
 async function count(page, note, deleted = false) {
-  return page.evaluate(async ({ note, deleted }) => {
-    const db = await new Promise(done => { const r = indexedDB.open('monee-db'); r.onsuccess = () => done(r.result) })
+  return page.evaluate(async ({ note, deleted, databaseName }) => {
+    const db = await new Promise(done => { const r = indexedDB.open(databaseName); r.onsuccess = () => done(r.result) })
     const rows = await new Promise(done => { const r = db.transaction('transactions').objectStore('transactions').getAll(); r.onsuccess = () => done(r.result) }); db.close()
     return rows.filter(row => row.note === note && !!row.deleted === deleted).length
-  }, { note, deleted })
+  }, { note, deleted, databaseName: qaDatabaseName })
 }
 
 try {
   const context = await browser.newContext({ viewport: { width: 375, height: 900 }, reducedMotion: 'reduce' })
+  await installQaAccount(context, qaAccountId)
   await context.addInitScript(() => {
     window.__micStops = 0; window.__micRequests = 0
     Object.defineProperty(navigator, 'mediaDevices', { configurable: true, value: { getUserMedia: async () => {
@@ -93,7 +95,6 @@ try {
     await page.getByText('Draft 1 dari 1', { exact: true }).waitFor(); await capture(page, `review-${width}`)
     assert.equal(await count(page, 'makan dua puluh lima ribu'), 0)
     await page.getByRole('button', { name: 'Tutup Review transaksi' }).click()
-    await page.getByRole('button', { name: 'Tutup Tambah transaksi' }).click()
   }
   report.checks.responsive = true; report.checks.noAutoSave = true
 
@@ -112,9 +113,9 @@ try {
   await fab.hover(); await page.mouse.down(); await page.waitForTimeout(650); await page.mouse.up()
   await page.getByRole('dialog', { name: 'Catat dengan suara' }).waitFor()
   assert.equal(await page.evaluate(() => window.__micRequests), 0)
-  report.checks.longPress = true; report.checks.sessionConsent = true
-  assert.equal(await page.getByRole('button', { name: 'Mulai rekam' }).isDisabled(), true)
-  await page.getByRole('checkbox', { name: /Saya setuju.*server Monee.*Groq/ }).check()
+  report.checks.longPress = true; report.checks.explicitCaptureAction = true
+  assert.equal(await page.getByRole('button', { name: 'Mulai rekam' }).isEnabled(), true)
+  assert.equal(await page.getByRole('checkbox').count(), 0)
   await page.getByRole('button', { name: 'Mulai rekam' }).click()
   await page.getByRole('button', { name: 'Berhenti rekam' }).waitFor()
   assert.equal(await page.locator('.voice-mascot [data-state]').getAttribute('data-state'), 'listening')
@@ -151,14 +152,15 @@ try {
   await page.getByLabel('Ucapan atau teks transaksi').fill('makan 999 juta')
   await page.getByRole('button', { name: 'Buat draft' }).click()
   await page.getByRole('button', { name: 'Simpan draft', exact: true }).click()
-  await page.getByText(/ERR_JATAH_HABIS|ERR_SALDO_KURANG/).waitFor()
+  const domainAlert = page.getByRole('alert').last()
+  await domainAlert.waitFor()
+  assert.match(await domainAlert.innerText(), /Jatah Kebutuhan Pokok tinggal|Saldo periode tinggal/)
   assert.equal(await page.getByLabel('Nominal (Rp)', { exact: true }).inputValue(), '999000000')
   await page.getByRole('button', { name: 'Tutup Review transaksi' }).click()
-  await page.getByRole('button', { name: 'Catat dengan suara', exact: true }).click()
+  await voice(page)
   report.checks.domainFailure = true
 
   // Cancelling an active capture stops tracks and never creates another upload.
-  await page.getByRole('checkbox', { name: /Saya setuju/ }).check()
   await page.getByRole('button', { name: 'Mulai rekam' }).click()
   await page.getByRole('button', { name: 'Berhenti rekam' }).waitFor()
   await page.getByRole('button', { name: 'Tutup Catat dengan suara' }).click()
@@ -166,9 +168,8 @@ try {
   report.checks.cancelNoUpload = true
 
   // Offline fallback remains local after the voice chunk has been loaded.
-  await page.getByRole('button', { name: 'Catat dengan suara', exact: true }).click()
+  await voice(page)
   await context.setOffline(true)
-  await page.getByRole('checkbox', { name: /Saya setuju/ }).check()
   await page.getByRole('button', { name: 'Mulai rekam' }).click()
   await page.getByText(/Voice membutuhkan internet/).waitFor()
   await page.getByLabel('Ucapan atau teks transaksi').fill('makan 20rb')
@@ -177,16 +178,15 @@ try {
   report.checks.offline = true
   await context.setOffline(false)
   await page.getByRole('button', { name: 'Tutup Review transaksi' }).click()
-  await page.getByRole('button', { name: 'Tutup Tambah transaksi' }).click()
   // Close the phase 8 handoff gap with production theme preview, dismiss, apply and reload.
   await page.getByRole('link', { name: 'Atur', exact: true }).click()
   await page.getByRole('button', { name: /^Maskot & Tema/ }).click()
-  await page.getByRole('button', { name: 'Pilih Luna', exact: true }).click()
+  await page.getByRole('option', { name: /Luna/ }).click()
   await page.waitForFunction(() => document.documentElement.dataset.mascot === 'luna')
-  await page.getByRole('button', { name: 'Tutup Maskot & Tema' }).click()
+  await page.getByRole('button', { name: 'Kembali dari Maskot & Tema' }).click()
   await page.waitForFunction(() => document.documentElement.dataset.mascot === 'mochi')
   await page.getByRole('button', { name: /^Maskot & Tema/ }).click()
-  await page.getByRole('button', { name: 'Pilih Luna', exact: true }).click()
+  await page.getByRole('option', { name: /Luna/ }).click()
   await page.getByRole('button', { name: 'Pilih Maskot ini', exact: true }).click()
   await page.getByRole('dialog').waitFor({ state: 'hidden' })
   await page.reload(); await page.getByLabel('PIN 6 digit', { exact: true }).fill('123456')
@@ -198,7 +198,6 @@ try {
   expireAccess = true
   await page.getByRole('link', { name: 'Home', exact: true }).click()
   await voice(page)
-  await page.getByRole('checkbox', { name: /Saya setuju/ }).check()
   await page.getByRole('button', { name: 'Mulai rekam' }).click()
   await page.getByRole('button', { name: 'Berhenti rekam' }).click()
   const login = page.getByRole('link', { name: 'Masuk ulang layanan suara' })
@@ -215,7 +214,7 @@ try {
 } catch (error) {
   report.failure = error.stack; process.exitCode = 1
 } finally {
-  await writeFile(resolve(output, 'report.json'), JSON.stringify(report, null, 2))
+  await updateReport('voice', report)
   await browser.close(); await host.close()
   console.log(JSON.stringify({ ...report, layouts: report.layouts.length }, null, 2))
 }

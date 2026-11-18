@@ -1,24 +1,28 @@
 # Status dan tugas Monee
 
-Diperbarui: 29 Oktober 2026. Tracker ini mencatat pekerjaan aktif; kontrak produk, uang, privasi dan desain berada pada dokumen 01-12.
+Diperbarui: 18 November 2026. Dokumen ini melacak pekerjaan produk; bukti pemeriksaan terbaru dan arsip audit disatukan di `LOCAL_REPORT.md` pada root proyek (lokal, diabaikan Git). Jangan membuat tracker atau laporan QA baru.
 
-## Dasar implementasi
+## Implementasi saat ini
 
-Core pencatatan, onboarding/PIN, alokasi, tabungan/goal, riwayat/grafik, pengaturan, backup, PWA, maskot dan voice sudah tersedia. Data tetap lokal per browser/origin. Voice beralih ke Groq `whisper-large-v3` melalui Cloudflare Worker, dengan secret pemilik di hosting dan login email Cloudflare Access. Pengguna tidak memasukkan API key; parser tetap lokal deterministik. Implementasi voice terkelola dan verifikasi lokal selesai; deployment serta pengujian layanan nyata masih menunggu pemilik. Pembacaan otomatis struk tetap belum tersedia; hasil uji workflow tidak membuktikan akurasi model OCR.
+- Pencatatan, onboarding, bucket, tabungan/goal, riwayat/grafik, pengaturan, backup dan PWA tersedia. Ledger akun berada di D1; IndexedDB per perangkat menjadi cache dan antrean perubahan offline.
+- Ajakan pemasangan PWA tersedia setelah login/onboarding saat browser siap, dengan penundaan 7 hari, panduan Safari iPhone/iPad dan akses manual dari pengaturan. Pemasangan OS tetap memerlukan pilihan pengguna.
+- Alur email + PIN akun 6 digit sudah aktif di production dengan migrasi 0002 dan AUTH_PIN_PEPPER. Cloudflare memverifikasi daftar/aktivasi/pemulihan saja; sesi diperpanjang oleh aktivitas pengguna selama 30 hari. Kunci perangkat tambahan opsional.
+- Data legacy tidak menghalangi login; impor opsional melalui pengaturan dengan backup dan konfirmasi penggantian ledger. Kredensial PIN akun dan kunci perangkat terpisah dari ledger tersinkron.
+- Semua maskot memakai Canvas 2.5D; GLB, decoder Draco dan renderer Three.js telah dihapus. Carousel berputar melalui tombol, keyboard, swipe dan wheel.
+- Kontras kartu tabungan pada sisi balik Beranda, label total dan ikon kembali diuji pada ketiga tema. Carousel mendukung swipe sentuh asli dan lintasan kiri/kanan simetris tanpa memasang ulang Canvas.
+- Voice memakai Worker `/api/transcribe`, Groq `whisper-large-v3`, sesi akun Monee, rate limit per akun, secret server, tindakan rekam eksplisit dan review draft lokal.
+- OCR memakai Worker `/api/receipt` dan Google Gemini. Secret `GEMINI_API_KEY` dipasang di hosting; foto dikirim setelah menekan Baca otomatis dan hasil wajib diperiksa sebelum disimpan.
+- Artefak QA lama, cache regeneratif, skrip audit sekali pakai serta UI kategori yang tidak terhubung telah dibersihkan. Model data kategori dan validasi backup dipertahankan untuk kompatibilitas data. Alat QA aktif memperbarui satu laporan lokal.
 
-Cleanup mempertahankan satu sumber GLB runtime di `public/mascots/3d/`, satu studio di `tools/studio/index.html`, tooling dan tes aktif, sumber desain beserta PNG yang dirujuk, dan dokumentasi inti. Riwayat laporan/rencana tidak menjadi tracker tambahan.
+## Verifikasi dan pekerjaan tersisa
 
-## Pekerjaan aktif
-
-- [x] Siapkan alur struk v1: pemilih gambar/galeri, review, tambah/koreksi/hapus item, total mengikuti format Rupiah, dan simpan seluruh batch atomik lewat guard finance. Provider belum dikonfigurasi. Gabung item dan viewfinder kamera khusus belum tersedia.
-- [ ] Tetapkan model/provider OCR, kebutuhan key dan persetujuan pengguna sebelum menambahkan pengenalan atau upload. Kontrak provider disiapkan; belum ada model, key OCR atau hasil pengenalan nyata.
-- [x] Implementasi voice terkelola: Worker `/api/transcribe`, JWT Access, rate limit, secret server, consent tanpa key, pembersihan credential lama, CSP same-origin serta login ulang `/auth/refresh` yang melewati cache PWA.
-- [x] Verifikasi lokal terbaru: 648 tes di 66 file lulus; typecheck, lint, build, dan bundling Wrangler dry-run lulus. Audit dependency 29 Okt 2026 menemukan 4 temuan Low pada dependency build PWA `deepmerge@4.3.1` melalui Workbox; advisory belum menetapkan versi perbaikan, sementara perbaikan otomatis npm menyarankan downgrade major plugin yang tidak dipilih. Browser: 23 skenario aplikasi, 18 layout dan 27 audit aksesibilitas tanpa pelanggaran; voice 14 layout; PWA pada 3 profil emulasi menguji update/offline serta login ulang yang melewati cache. Worker lokal menolak API tanpa konfigurasi dan menjaga routing JSON. Respons provider terkontrol; belum membuktikan suara nyata, Access publik atau instalasi perangkat fisik. Build masih memberi peringatan chunk di atas 500 kB.
-- [ ] Pemilik menghubungkan GitHub ke Cloudflare Worker (Node 22 >=22.23.4; build `npm run build`, deploy `npm run deploy`) atau memakai CLI. Lindungi All traffic produksi/preview dengan email OTP allowlist, isi secret `GROQ_API_KEY` serta vars `ACCESS_TEAM_DOMAIN`/`ACCESS_AUD`; verifikasi penolakan tanpa login. Belum ada publikasi yang dibuktikan.
-- [ ] Sesudah hosting: periksa MIME aset, header/cache, refresh deep-link, service worker/update, offline setelah cache, dan pemisahan data per origin.
-- [ ] Uji perangkat fisik: Android sasaran, tablet/laptop, instalasi OS, izin mic/kamera, background/lock, touch/keyboard dan performa. Emulasi viewport tidak menggantikan bukti perangkat.
-- [ ] Uji Groq dengan secret hosting, sesi email Access dan suara nyata: izin ditolak/diterima, rekam/stop, timeout/kuota/offline, koreksi draft, background/lock dan format Safari MP4. Akurasi ujaran nyata belum diklaim.
+- Hasil lint, typecheck, unit, mascot, build, browser, PWA, voice dan benchmark setelah pembersihan dicatat pada bagian suite terkait di laporan lokal. Emulasi tidak membuktikan perilaku perangkat fisik atau akurasi provider nyata.
+- Uji Android/tablet/laptop fisik: instalasi OS, izin mic/kamera, background/lock, touch, keyboard dan performa.
+- Uji layanan Groq/Gemini pada hosting dengan sesi akun Monee serta suara/struk asli; cek timeout, offline, kuota dan review draft. Pemeriksaan ready=true hanya memastikan konfigurasi. Jangan menyimpan key di frontend atau laporan.
+- Login PIN akun, onboarding, pemakaian ulang sesi, pembacaan/perubahan ledger melalui dua sesi terpisah, penolakan API tanpa sesi, header/cache, deep-link dan pembaruan PWA sudah diperiksa di production. Pemeriksaan browser baru/perangkat fisik dan offline production tetap perlu; dua sesi HTTP tidak setara dengan dua perangkat fisik.
+- Evaluasi ukuran chunk JavaScript utama yang masih memunculkan peringatan build.
+- Keuangan pada cache IndexedDB tidak terenkripsi saat tersimpan. PIN membatasi UI, bukan mengenkripsi database; sumber ledger tersinkron berada di D1. Hapus semua data menghapus ledger akun dari semua perangkat.
 
 ## Sesudah v1
 
-Recurring expense/subscription, reminder, insight/forecast dan pemulihan PIN belum menjadi implementasi v1. Sinkronisasi, cloud backup, serta wallet/integrasi bank tidak termasuk arsitektur saat ini. Detail keputusan: [PRD](01-product-brief-prd.md), [AI](07-ai-features.md), [QA](10-qa-backlog.md), [deployment](deployment.md).
+Recurring expense/subscription, reminder dan insight/forecast masih di luar v1. Pemulihan PIN akun tersedia melalui verifikasi Access pada alur baru. Uji provider nyata dan pemeriksaan perangkat fisik tetap perlu sebelum rilis. Lihat [PRD](01-product-brief-prd.md), [AI](07-ai-features.md), [QA](10-qa-backlog.md), dan [deployment](deployment.md).

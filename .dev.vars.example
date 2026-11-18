@@ -1,6 +1,11 @@
 # SERVER ONLY. Copy to .dev.vars for local development; never use VITE_ names.
-# Production: set Secret GROQ_API_KEY and server variables in Cloudflare dashboard.
-# The API rejects requests without a verified Cloudflare Access user session.
+# Production: set GROQ_API_KEY and GEMINI_API_KEY as runtime secrets in Cloudflare.
+# Access is required only on /auth/bootstrap for registration, activation and recovery.
+# Enable email/PIN accounts after applying all D1 migrations. Generate a random secret
+# of at least 32 characters; never reuse the synthetic test pepper.
+AUTH_PIN_PEPPER=
 GROQ_API_KEY=
+# Gemini receipt OCR: runtime server secret only; never use a VITE_ variable.
+GEMINI_API_KEY=
 ACCESS_TEAM_DOMAIN=https://your-team.cloudflareaccess.com
 ACCESS_AUD=

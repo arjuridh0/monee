@@ -7,11 +7,12 @@ const BACKGROUND_LOCK_MS = 5 * 60 * 1_000
 export function useAutoLock() {
   const isLoaded = useMoneeStore(state => state.isLoaded)
   const hasProfile = useMoneeStore(state => Boolean(state.profile))
+  const hasPin = useMoneeStore(state => Boolean(state.profile?.pinHash && state.profile.pinSalt))
   const isLocked = useMoneeStore(state => state.isLocked)
   const setLocked = useMoneeStore(state => state.setLocked)
 
   useEffect(() => {
-    if (!isLoaded || !hasProfile || isLocked) return
+    if (!isLoaded || !hasProfile || !hasPin || isLocked) return
     let backgroundAt: number | null = document.visibilityState === 'hidden' ? Date.now() : null
 
     const rememberBackground = () => { backgroundAt ??= Date.now() }
@@ -34,5 +35,5 @@ export function useAutoLock() {
       window.removeEventListener('pagehide', rememberBackground)
       window.removeEventListener('pageshow', checkReturn)
     }
-  }, [isLoaded, hasProfile, isLocked, setLocked])
+  }, [isLoaded, hasProfile, hasPin, isLocked, setLocked])
 }

@@ -5,6 +5,7 @@ import { InlineError } from '@/components/ui/feedback'
 import { useRupiah } from '@/hooks/useRupiah'
 import { useMoneeStore } from '@/store'
 import type { SavingsSource } from '@/core/finance/types'
+import { savingsErrorMessage } from './errors'
 
 export function SavingsExpenseDialog({ source = 'sisa', onClose }: { source?: SavingsSource; onClose: () => void }) {
   const rupiah = useRupiah()
@@ -22,7 +23,7 @@ export function SavingsExpenseDialog({ source = 'sisa', onClose }: { source?: Sa
     try {
       await useMoneeStore.getState().recordSavingsExpense({ amount: Number(amount), note, savingsSource: selectedSource })
       onClose()
-    } catch (cause) { setError(cause instanceof Error ? cause.message : 'Pengeluaran belum tersimpan. Coba lagi.') }
+    } catch (cause) { setError(savingsErrorMessage(cause, 'Pengeluaran belum tersimpan. Coba lagi.')) }
     finally { inFlight.current = false; setBusy(false) }
   }
   return <Dialog open title="Pakai tabungan" onClose={() => { if (!busy) onClose() }} sheet>

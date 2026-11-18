@@ -1,4 +1,4 @@
-import { useId, type ButtonHTMLAttributes, type HTMLAttributes, type InputHTMLAttributes } from 'react'
+import { useId, useState, type ButtonHTMLAttributes, type HTMLAttributes, type InputHTMLAttributes } from 'react'
 import { LoaderCircle } from 'lucide-react'
 import { formatPercent } from '@/core/finance/percent'
 import { InlineError } from './feedback'
@@ -9,10 +9,17 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   loading?: boolean
 }
 
-export function Button({ variant = 'primary', loading = false, disabled, type = 'button', className = '', children, ...props }: ButtonProps) {
+export function Button({ variant = 'primary', loading = false, disabled, type = 'button', className = '', children, onClick, ...props }: ButtonProps) {
+  const [fusePulse, setFusePulse] = useState(0)
   return <button {...props} type={type} className={`ui-button ui-button--${variant} ${className}`}
-    disabled={disabled || loading} aria-busy={loading || undefined}>
-    {loading && <LoaderCircle className="ui-spin" size={18} aria-hidden="true" />}{children}
+    disabled={disabled || loading} aria-busy={loading || undefined}
+    data-fuse-pulse={fusePulse || undefined}
+    onClick={event => { setFusePulse(value => value + 1); onClick?.(event) }}>
+    {loading && <LoaderCircle className="ui-spin" size={18} aria-hidden="true" />}
+    <span className="ui-button__content">{children}</span>
+    {fusePulse > 0 && <svg key={fusePulse} className="ui-button__fuse" aria-hidden="true" viewBox="0 0 100 48" preserveAspectRatio="none">
+      <rect x="1" y="1" width="98" height="46" rx="9" pathLength="1" />
+    </svg>}
   </button>
 }
 

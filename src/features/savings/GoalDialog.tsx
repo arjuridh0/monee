@@ -6,6 +6,7 @@ import { CategoryIcon } from '@/components/ui/CategoryIcon'
 import { GOAL_ICONS } from '@/components/ui/goal-icons'
 import type { Goal } from '@/core/finance/types'
 import { useMoneeStore } from '@/store'
+import { savingsErrorMessage } from './errors'
 
 export function GoalDialog({ goal, onClose }: { goal?: Goal; onClose: () => void }) {
   const [name, setName] = useState(goal?.name ?? '')
@@ -28,7 +29,7 @@ export function GoalDialog({ goal, onClose }: { goal?: Goal; onClose: () => void
         createdAt: goal?.createdAt ?? Date.now(), sortOrder: goal?.sortOrder ?? Math.max(-1, ...state.goals.map(item => item.sortOrder)) + 1,
         ...(icon.trim() ? { icon: icon.trim() } : {}) }
       await state.saveGoal(next); onClose()
-    } catch (cause) { setError(cause instanceof Error ? cause.message : 'Tujuan belum tersimpan. Coba lagi.') }
+    } catch (cause) { setError(savingsErrorMessage(cause, 'Tujuan belum tersimpan. Coba lagi.')) }
     finally { inFlight.current = false; setBusy(false) }
   }
   return <Dialog open title={goal ? 'Edit tujuan' : 'Tambah tujuan'} onClose={() => { if (!busy) onClose() }} sheet>

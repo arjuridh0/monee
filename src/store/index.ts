@@ -26,7 +26,8 @@ import { changePin as persistPinChange } from '@/features/security/change-pin'
 import { deleteCategory as persistDeleteCategory, saveCategory as persistCategory } from '@/features/settings/category-persistence'
 import { saveAllocation as persistAllocation, type SaveAllocationInput } from '@/features/settings/allocation-persistence'
 import { deleteRecurringIncome as persistDeleteRecurringIncome, saveRecurringIncome as persistRecurringIncome } from '@/features/settings/recurring-persistence'
-import { deleteAllData as persistDeleteAllData } from '@/features/settings/delete-all'
+import { deleteAllData as persistDeleteAllData, validateDeleteAllData } from '@/features/settings/delete-all'
+import { deleteAccountLedger } from '@/features/auth/account-client'
 import { announceMascotError, announceMascotTransaction, announceMilestone } from '@/features/mascot/mascot-events'
 
 // ---- State shape ------------------------------------------------
@@ -51,6 +52,8 @@ interface MoneeState {
   // Actions
   load:            () => Promise<void>
   setLocked:       (locked: boolean) => void
+  /** Hydrate only after the caller has verified the current PIN. This is a UI/session gate, not database encryption. */
+  unlockProfile: (expected: Profile, canUnlock?: () => boolean) => Promise<void>
   saveProfile:     (p: Profile) => Promise<void>
   changePin:       (currentPin: string, newPin: string) => Promise<void>
   finishOnboarding: (input: CompleteOnboardingInput) => Promise<void>
@@ -65,7 +68,7 @@ interface MoneeState {
   deleteCategory: (id: string) => Promise<void>
   saveRecurringIncome: (recurring: RecurringIncome, expected?: RecurringIncome) => Promise<void>
   deleteRecurringIncome: (id: string) => Promise<void>
-  deleteAllData: (pin: string, expectedPinHash: string) => Promise<void>
+  deleteAllData: (pin: string | undefined, expectedPinHash: string) => Promise<void>
   saveGoal:        (g: Goal) => Promise<void>
   deleteGoal:      (id: string) => Promise<void>
   recordSavingsExpense: (input: SavingsExpenseInput) => Promise<void>
@@ -95,6 +98,24 @@ function deriveSnapshot(state: { profile: Profile | null; buckets: Bucket[]; tra
 
 let loadInFlight: Promise<void> | null = null
 let requestedLoad = 0
+let lockRevision = 0
+
+const emptyLedger = () => ({ buckets: [] as Bucket[], categories: [] as Category[], transactions: [] as Transaction[],
+  recurringIncomes: [] as RecurringIncome[], goals: [] as Goal[], sweeps: [] as MonthSweep[], snapshot: null })
+
+async function readLedger() {
+  const db = await openDatabase()
+  await seedDefaultData(db)
+  await runLazyEffects(db)
+  const read = db.transaction(['profile', 'buckets', 'categories', 'transactions', 'recurringIncomes', 'goals', 'monthSweeps'], 'readonly')
+  const [profile, buckets, categories, transactions, recurringIncomes, goals, sweeps] = await Promise.all([
+    read.objectStore('profile').get('profile'), read.objectStore('buckets').getAll(),
+    read.objectStore('categories').getAll(), read.objectStore('transactions').getAll(),
+    read.objectStore('recurringIncomes').getAll(), read.objectStore('goals').getAll(), read.objectStore('monthSweeps').getAll(),
+  ])
+  await read.done
+  return { profile: profile ?? null, buckets, categories, transactions, recurringIncomes, goals, sweeps, isLoaded: true }
+}
 
 export const useMoneeStore = create<MoneeState>()((set, get) => ({
   profile:          null,
@@ -108,7 +129,22 @@ export const useMoneeStore = create<MoneeState>()((set, get) => ({
   isLoaded:         false,
   isLocked:         true,
 
-  setLocked: (locked) => set({ isLocked: locked }),
+  setLocked: (locked) => {
+    if (locked) { lockRevision++; set({ isLocked: true, ...emptyLedger() }) }
+    else set({ isLocked: false })
+  },
+
+  unlockProfile: async (expected, canUnlock = () => true) => {
+    const revision = lockRevision
+    const nextState = await readLedger()
+    if (revision !== lockRevision || !canUnlock() || document.visibilityState === 'hidden') {
+      throw new Error('ERR_SESSION_CANCELLED')
+    }
+    if (nextState.profile?.pinHash !== expected.pinHash || nextState.profile.pinSalt !== expected.pinSalt) {
+      throw new Error('ERR_PROFILE_STALE')
+    }
+    set({ ...nextState, snapshot: deriveSnapshot(nextState), isLocked: false })
+  },
 
   load: async () => {
     requestedLoad++
@@ -117,31 +153,19 @@ export const useMoneeStore = create<MoneeState>()((set, get) => ({
       let revision: number
       do {
       revision = requestedLoad
-      const db = await openDatabase()
-      await seedDefaultData(db)
-      await runLazyEffects(db)
-      const read = db.transaction(['profile', 'buckets', 'categories', 'transactions', 'recurringIncomes', 'goals', 'monthSweeps'], 'readonly')
-      const [profile, buckets, categories, transactions, recurringIncomes, goals, sweeps] =
-        await Promise.all([
-          read.objectStore('profile').get('profile'), read.objectStore('buckets').getAll(),
-          read.objectStore('categories').getAll(), read.objectStore('transactions').getAll(),
-          read.objectStore('recurringIncomes').getAll(), read.objectStore('goals').getAll(), read.objectStore('monthSweeps').getAll(),
-        ])
-      await read.done
-      const nextState = {
-        profile: profile ?? null,
-        buckets,
-        categories,
-        transactions,
-        recurringIncomes,
-        goals,
-        sweeps,
-        isLoaded: true,
-      }
-
-      set(previous => ({ ...nextState, snapshot: deriveSnapshot(nextState),
-        isLocked: previous.isLocked || Boolean(profile && !previous.profile) || Boolean(previous.profile && (!profile
-          || previous.profile.pinHash !== profile.pinHash || previous.profile.pinSalt !== profile.pinSalt)) }))
+      const nextState = await readLedger()
+      const { profile } = nextState
+      set(previous => {
+        const hasPin = Boolean(profile?.pinHash && profile.pinSalt)
+        const isLocked = profile
+          ? hasPin && (previous.isLocked || !previous.profile || previous.profile.pinHash !== profile.pinHash
+            || previous.profile.pinSalt !== profile.pinSalt)
+          : previous.isLocked
+        // Keep only the profile needed by PinScreen while locked. Refreshes must not restore ledger memory.
+        // No profile means first-run onboarding still needs the seeded buckets/categories.
+        return isLocked && profile ? { ...nextState, ...emptyLedger(), isLocked }
+          : { ...nextState, snapshot: deriveSnapshot(nextState), isLocked }
+      })
       } while (revision !== requestedLoad)
     })()
     try { await loadInFlight }
@@ -158,7 +182,9 @@ export const useMoneeStore = create<MoneeState>()((set, get) => ({
       const result = await completeOnboarding(await openDatabase(), input)
       // Only the tab that created the profile may enter directly; stale wizards use PinGate.
       await get().load()
-      set({ isLocked: !result.created || backgrounded })
+      if (!result.profile.pinHash) await get().setLocked(false)
+      else if (result.created && !backgrounded) await get().unlockProfile(result.profile, () => !backgrounded)
+      else get().setLocked(true)
       notifyDataChanged()
     } finally {
       document.removeEventListener('visibilitychange', onVisibility)
@@ -277,7 +303,11 @@ export const useMoneeStore = create<MoneeState>()((set, get) => ({
   },
 
   deleteAllData: async (pin, expectedPinHash) => {
-    await persistDeleteAllData(await openDatabase(), { pin, expectedPinHash })
+    const db = await openDatabase()
+    const input = { ...(pin ? { pin } : {}), expectedPinHash }
+    await validateDeleteAllData(db, input)
+    await deleteAccountLedger()
+    await persistDeleteAllData(db, input)
     set({
       profile: null, buckets: [], categories: [], transactions: [], recurringIncomes: [],
       goals: [], sweeps: [], snapshot: null, isLoaded: true, isLocked: false,
@@ -335,18 +365,3 @@ export const useMoneeStore = create<MoneeState>()((set, get) => ({
     await get().load(); notifyDataChanged()
   },
 }))
-
-// ---- Selector shortcuts (memoized by zustand) -------------------
-export const selectSnapshot  = (s: MoneeState) => s.snapshot
-export const selectProfile   = (s: MoneeState) => s.profile
-export const selectBalance   = (s: MoneeState) => s.snapshot?.balance
-export const selectBuckets   = (s: MoneeState) => s.snapshot?.buckets ?? []
-export const selectSavings   = (s: MoneeState) => s.snapshot?.savings
-export const selectPeriodTxs = (s: MoneeState) => s.snapshot?.periodTxs ?? []
-export const selectRecentTxs = (s: MoneeState) => s.snapshot?.recentTxs ?? []
-export const selectCategories= (s: MoneeState) => s.categories
-export const selectIsLoaded  = (s: MoneeState) => s.isLoaded
-export const selectIsLocked  = (s: MoneeState) => s.isLocked
-
-
-

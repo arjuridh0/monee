@@ -5,17 +5,18 @@ import { Dialog } from '@/components/ui/Dialog'
 import { InlineError } from '@/components/ui/feedback'
 import { getToday, isValidDateStr } from '@/core/finance/period'
 import type { Transaction, TxType } from '@/core/finance/types'
+import { defaultCategoryId } from '@/core/finance/transaction-presentation'
 import { useMoneeStore } from '@/store'
 import type { VoiceDraft } from './parser'
 
-export function VoiceDraftReview({ draft, index, total, onNext, onClose }: {
-  draft: VoiceDraft; index: number; total: number; onNext: () => void; onClose: () => void
+export function VoiceDraftReview({ draft, index, total, transcript = '', issues = [], onNext, onClose }: {
+  draft: VoiceDraft; index: number; total: number; transcript?: string; issues?: string[]; onNext: () => void; onClose: () => void
 }) {
   const categories = useMoneeStore(state => state.categories)
   const buckets = useMoneeStore(state => state.buckets)
   const [type, setType] = useState<TxType>(draft.type)
   const [amount, setAmount] = useState(String(draft.amount)), [date, setDate] = useState(draft.date)
-  const [categoryId, setCategory] = useState(draft.categoryId), [bucketId, setBucket] = useState(draft.bucketId)
+  const [bucketId, setBucket] = useState(draft.bucketId)
   const [source, setSource] = useState(draft.savingsSource ?? 'sisa'), [note, setNote] = useState(draft.note)
   const [error, setError] = useState(''), [phase, setPhase] = useState('idle'), [busy, setBusy] = useState(false)
   const id = useRef(crypto.randomUUID())
@@ -23,16 +24,16 @@ export function VoiceDraftReview({ draft, index, total, onNext, onClose }: {
   const prepared = useRef<Transaction | null>(null)
   const savingsBucket = buckets.find(bucket => bucket.isSavings)
   const locked = busy || phase !== 'idle'
+  const review = draft.review.filter(field => field !== 'category')
   function prepare() {
     setError('')
     const value = Number(amount)
     if (!Number.isSafeInteger(value) || value <= 0) { setError('Nominal harus lebih dari 0 rupiah utuh.'); return false }
     if (!isValidDateStr(date) || date > getToday()) { setError('Pilih tanggal yang valid dan tidak di masa depan.'); return false }
-    const category = categories.find(item => item.id === (type === 'savings_deposit' ? 'cat-tabungan' : categoryId)
-      && item.type === (type === 'income' ? 'income' : 'expense'))
-    if (type !== 'savings_expense' && (!category || (type === 'expense' && category.id === 'cat-tabungan'))) {
-      setError('Pilih kategori yang sesuai. Untuk menabung, pilih jenis Setoran tabungan.'); return false
-    }
+    // Preserve the legacy persistence contract without exposing categories in review.
+    const categoryId = defaultCategoryId(categories, type, type === draft.type ? draft.categoryId : undefined)
+    const category = categories.find(item => item.id === categoryId && item.type === (type === 'income' ? 'income' : 'expense'))
+    if (type !== 'savings_expense' && !category) { setError('Data transaksi belum siap. Buka ulang input transaksi, ya.'); return false }
     const bucket = type === 'savings_deposit' ? savingsBucket : buckets.find(item => item.id === bucketId && !item.isSavings)
     if (['expense', 'savings_deposit'].includes(type) && !bucket) { setError('Pilih bucket yang tersedia.'); return false }
     if (type === 'savings_expense' && !note.trim()) { setError('Catatan pengeluaran tabungan wajib diisi.'); return false }
@@ -65,18 +66,17 @@ export function VoiceDraftReview({ draft, index, total, onNext, onClose }: {
   return <Dialog open sheet title="Review transaksi" footer={footer} onClose={() => { if (!locked) onClose() }}>
     <form className="voice-form" onSubmit={event => event.preventDefault()}>
       <p className="voice-progress" role="status">Draft {index + 1} dari {total}</p>
-      {draft.review.length > 0 && <p className="voice-review-hint">Perlu diperiksa: {draft.review.map(field => ({ category: 'kategori', bucket: 'bucket', date: 'tanggal', source: 'sumber dana' }[field])).join(', ')}.</p>}
+      {transcript && <div className="voice-transcript"><p className="ui-helper">Teks transaksi</p><p>{transcript}</p></div>}
+      {issues.map((issue, i) => <InlineError key={i}>{issue}</InlineError>)}
+      {review.length > 0 && <p className="voice-review-hint">Perlu diperiksa: {review.map(field => ({ bucket: 'bucket', date: 'tanggal', source: 'sumber dana' }[field])).join(', ')}.</p>}
       <fieldset className="voice-fields" disabled={locked}>
         <label className="voice-field">Jenis transaksi<select value={type} onChange={event => {
-          setType(event.target.value as TxType); setCategory(''); setBucket(''); setError('')
+          setType(event.target.value as TxType); setBucket(''); setError('')
         }}>
           <option value="expense">Pengeluaran</option><option value="income">Pemasukan</option>
           <option value="savings_deposit">Setoran tabungan</option><option value="savings_expense">Pengeluaran tabungan</option>
         </select></label>
         <TextField label="Nominal (Rp)" type="number" inputMode="numeric" min="1" step="1" value={amount} onChange={event => { setAmount(event.target.value); setError('') }} />
-        {(type === 'expense' || type === 'income') && <label className="voice-field">Kategori<select value={categoryId} onChange={event => { setCategory(event.target.value); setError('') }}>
-          <option value="">Pilih kategori</option>{categories.filter(item => item.type === type && item.id !== 'cat-tabungan').map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
-        </select></label>}
         {type === 'expense' && <label className="voice-field">Bucket<select value={bucketId} onChange={event => { setBucket(event.target.value); setError('') }}>
           <option value="">Pilih bucket</option>{buckets.filter(item => !item.isSavings).map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
         </select></label>}

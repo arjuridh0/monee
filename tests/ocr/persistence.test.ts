@@ -57,7 +57,9 @@ it('rejects writing a receipt when its profile was removed', async () => {
 })
 it('refreshes store and notifies other tabs only after committing a whole batch', async () => {
   const db = await prepare()
-  useMoneeStore.setState({ ...useMoneeStore.getInitialState(), isLocked: false }, true)
+  useMoneeStore.setState(useMoneeStore.getInitialState(), true)
+  await useMoneeStore.getState().load()
+  await useMoneeStore.getState().unlockProfile(useMoneeStore.getState().profile!)
   localStorage.removeItem('monee:data-revision')
   await expect(useMoneeStore.getState().saveReceiptExpenses([item('fail-one', 25000), item('fail-two', 25000)])).rejects.toThrow('ERR_JATAH_HABIS')
   expect(localStorage.getItem('monee:data-revision')).toBeNull()

@@ -4,6 +4,7 @@ import { Dialog } from '@/components/ui/Dialog'
 import { InlineError } from '@/components/ui/feedback'
 import { useRupiah } from '@/hooks/useRupiah'
 import { useMoneeStore } from '@/store'
+import { savingsErrorMessage } from './errors'
 
 export function SavingsDepositDialog({ onClose }: { onClose: () => void }) {
   const rupiah = useRupiah()
@@ -20,7 +21,7 @@ export function SavingsDepositDialog({ onClose }: { onClose: () => void }) {
     try {
       await useMoneeStore.getState().recordSavingsDeposit({ amount: Number(amount), note })
       onClose()
-    } catch (cause) { setError(cause instanceof Error ? cause.message : 'Setoran belum tersimpan. Coba lagi.') }
+    } catch (cause) { setError(savingsErrorMessage(cause, 'Setoran belum tersimpan. Coba lagi.')) }
     finally { inFlight.current = false; setBusy(false) }
   }
   return <Dialog open title="Setor tabungan" onClose={() => { if (!busy) onClose() }} sheet>

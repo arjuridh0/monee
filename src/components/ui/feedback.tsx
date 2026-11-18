@@ -1,10 +1,11 @@
 import { useEffect, type HTMLAttributes, type ReactNode } from 'react'
 import { CircleAlert, Sprout, X } from 'lucide-react'
+import { toUserFacingErrorMessage } from './error-message'
 import './ui.css'
 
 export function InlineError({ children, className = '', ...props }: HTMLAttributes<HTMLParagraphElement>) {
   return <p {...props} role="alert" className={`ui-error ${className}`}>
-    <CircleAlert size={16} aria-hidden="true" /><span>{children}</span>
+    <CircleAlert size={16} aria-hidden="true" /><span>{typeof children === 'string' ? toUserFacingErrorMessage(children) : children}</span>
   </p>
 }
 
@@ -19,7 +20,7 @@ export function EmptyState({ title, message, action, illustration }: {
 
 export function Skeleton({ label = 'Memuat konten' }: { label?: string }) {
   return <div className="ui-skeleton" role="status" aria-label={label} aria-busy="true">
-    <span /><span /><span />
+    <p className="ui-helper">{label}…</p><span /><span /><span />
   </div>
 }
 

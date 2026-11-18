@@ -66,7 +66,7 @@ function assertRecords(stores: unknown): asserts stores is BackupStores {
   for (const p of profiles) {
     if (!isText(p?.id) || !isText(p.name) || !['mochi', 'luna', 'bumi'].includes(p.mascotId)
       || !Number.isInteger(p.periodStartDay) || p.periodStartDay < 1 || p.periodStartDay > 28
-      || !isHex(p.pinHash, 64) || !isHex(p.pinSalt, 32) || !isNatural(p.createdAt)
+      || !((p.pinHash === '' && p.pinSalt === '') || (isHex(p.pinHash, 64) && isHex(p.pinSalt, 32))) || !isNatural(p.createdAt)
       || bucketById.get(p.defaultBucketId)?.isSavings !== false
       || (p.currency !== undefined && (!isObject(p.currency) || p.currency.code !== 'IDR'
         || typeof p.currency.format !== 'string' || !['Rp#.###', 'Rp #.###', '#.###'].includes(p.currency.format)))) throw invalid('Profil pada backup tidak valid.')
@@ -154,18 +154,21 @@ async function deriveKey(passphrase: string, salt: Uint8Array): Promise<CryptoKe
 }
 
 export async function exportBackup(db: MoneeDB, passphrase?: string): Promise<string> {
+  // An explicit (but empty) encryption request must never become a plaintext export.
+  if (passphrase !== undefined && (passphrase.length < 8 || !passphrase.trim())) {
+    throw invalid('Passphrase harus minimal 8 karakter dan tidak boleh hanya spasi.')
+  }
   const tx = db.transaction(STORE_NAMES, 'readonly')
   const storeRows = Object.fromEntries(await Promise.all(STORE_NAMES.map(async name => [name, await tx.objectStore(name).getAll()]))) as BackupStores
   storeRows.settings = storeRows.settings.filter(row => row.key !== VOICE_CREDENTIAL_KEY)
   await tx.done
   assertRecords(storeRows)
   const exportedAt = new Date().toISOString()
-  if (!passphrase) {
+  if (passphrase === undefined) {
     const contents = JSON.stringify({ format: FORMAT, version: VERSION, encrypted: false, exportedAt, stores: storeRows } satisfies PlainBackup, null, 2)
     if (new TextEncoder().encode(contents).byteLength > MAX_BACKUP_BYTES) throw new BackupError('ERR_BACKUP_TOO_LARGE', 'Backup melebihi batas 20 MB.')
     return contents
   }
-  if (passphrase.length < 8) throw invalid('Passphrase harus minimal 8 karakter.')
   const salt = crypto.getRandomValues(new Uint8Array(16))
   const iv = crypto.getRandomValues(new Uint8Array(12))
   const key = await deriveKey(passphrase, salt)

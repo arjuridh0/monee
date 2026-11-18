@@ -2,7 +2,6 @@
 .receipt-fields { margin:0; padding:0; border:0; }
 .receipt-form p { margin:0; line-height:1.6; overflow-wrap:anywhere; }
 .receipt-preview { display:block; width:100%; max-height:280px; object-fit:contain; border-radius:var(--r-input); background:var(--surface-2); }
-.receipt-notice { padding:12px; background:var(--accent-soft); color:var(--accent-ink); border-radius:var(--r-input); }
 .receipt-item { display:grid; gap:12px; min-width:0; padding:16px 0; border-top:1px solid var(--border-hair); }
 .receipt-item h3 { margin:0; font-size:16px; }
 .receipt-select { display:grid; gap:8px; min-width:0; font-size:14px; font-weight:800; }
@@ -10,3 +9,11 @@
 .receipt-select select:focus-visible { outline:2px solid var(--accent-ink); outline-offset:3px; }
 .receipt-total { font-weight:800; }
 .receipt-fields input[type=file] { width:100%; max-width:100%; font-size:13px; padding:10px; }
+.receipt-photo-name { min-width:0; overflow-wrap:anywhere; font-size:13px; color:var(--text-accessible); }
+.receipt-photo-remove { justify-self:start; }
+
+.receipt-upload-prompt { display:grid; justify-items:center; gap:8px; padding:24px 14px; border:1px dashed var(--border-control); border-radius:20px; background:var(--surface-2); color:var(--accent-ink); text-align:center; cursor:pointer; }
+.receipt-upload-prompt span { font-size:14px; font-weight:600; }
+.receipt-upload-prompt small { color:var(--text-secondary); font-size:12px; font-weight:400; }
+.receipt-photo-field:focus-within .receipt-upload-prompt { outline:2px solid var(--accent-ink); outline-offset:3px; }
+.receipt-photo-field .receipt-photo-input { position:absolute; width:1px; height:1px; padding:0; clip-path:inset(50%); overflow:hidden; }

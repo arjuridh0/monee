@@ -1,21 +1,21 @@
 import { useId, useMemo } from 'react'
 import { Card } from '@/components/ui/controls'
-import { calcAnalytics } from '@/core/finance/analytics'
+import { calcBucketAnalytics } from '@/core/finance/analytics'
 import { formatPercent } from '@/core/finance/percent'
-import type { Category, Transaction } from '@/core/finance/types'
+import type { Bucket, Transaction } from '@/core/finance/types'
 import { useRupiah } from '@/hooks/useRupiah'
 import './charts.css'
 
-export function FinanceCharts({ transactions, categories }: { transactions: Transaction[]; categories: Category[] }) {
+export function FinanceCharts({ transactions, buckets }: { transactions: Transaction[]; buckets: Bucket[] }) {
   const money = useRupiah(), id = useId()
-  const data = useMemo(() => calcAnalytics(transactions, categories), [transactions, categories])
+  const data = useMemo(() => calcBucketAnalytics(transactions, buckets), [transactions, buckets])
   const max = Math.max(data.income, data.expense, 1)
   let offset = 0
   return <div className="finance-charts">
-    <Card className="finance-chart-card"><h3>Pengeluaran per kategori</h3>
+    <Card className="finance-chart-card"><h3>Pengeluaran per bucket</h3>
       {data.expense > 0 ? <>
         <svg className="finance-donut" viewBox="0 0 120 120" role="img" aria-labelledby={`${id}-category-title`} aria-describedby={`${id}-category-desc`}>
-          <title id={`${id}-category-title`}>Pengeluaran per kategori</title>
+          <title id={`${id}-category-title`}>Pengeluaran per bucket</title>
           <desc id={`${id}-category-desc`}>{data.categories.map(row => `${row.name}: ${money(row.amount)}, ${formatPercent(row.percent)}%`).join('; ')}</desc>
           {data.categories.map(row => {
             const start = offset; offset += row.percent

@@ -43,7 +43,7 @@ async function prepare(path: string) {
   ]
   for (const row of rows) await transactionRepo.save(db, row)
   await useMoneeStore.getState().load()
-  useMoneeStore.getState().setLocked(false)
+  await useMoneeStore.getState().unlockProfile(useMoneeStore.getState().profile!)
   render(<MemoryRouter initialEntries={[path]} future={{ v7_startTransition: true, v7_relativeSplatPath: true }}><AppShell /></MemoryRouter>)
 }
 

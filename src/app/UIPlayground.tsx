@@ -48,7 +48,7 @@ export function UIPlayground() {
     </div>
 
     <Card className="demo-stack">
-      <h2 className="demo-section-title">Carousel maskot 3D</h2>
+      <h2 className="demo-section-title">Carousel maskot 2.5D</h2>
       <p className="demo-secondary">Drag, scroll, atau pakai panah. Kartu tengah frontal dan latar berganti mengikuti maskot aktif.</p>
       <div className="demo-carousel">
         <MascotCarousel

@@ -4,12 +4,12 @@ import { describe, expect, it } from 'vitest'
 const css = readFileSync('src/theme/tokens.css', 'utf8')
 const token = (name: string) => css.match(new RegExp(`${name}:\\s*([^;]+);`))?.[1]?.trim()
 
-describe('Warm Clay tokens', () => {
+describe('Monee warm pocket ledger tokens', () => {
   it('matches the approved canvas surfaces and accessible text', () => {
-    expect(token('--bg-app')).toBe('#EFE7DA')
-    expect(token('--surface-2')).toBe('#FAF6EE')
-    expect(token('--text-primary')).toBe('#2E2A24')
-    expect(token('--text-accessible')).toBe('#5C5347')
+    expect(token('--bg-app')).toBe('#F7F3EA')
+    expect(token('--surface-2')).toBe('#FAF7F0')
+    expect(token('--text-primary')).toBe('#222D27')
+    expect(token('--text-accessible')).toBe('#556158')
     expect(token('--danger-ink')).toBe('#9C382D')
   })
 
@@ -21,11 +21,17 @@ describe('Warm Clay tokens', () => {
   })
 
   it('defines component geometry and reduced-motion support', () => {
-    expect(token('--r-card')).toBe('28px')
-    expect(token('--r-btn')).toBe('20px')
+    expect(token('--r-card')).toBe('20px')
+    expect(token('--r-btn')).toBe('14px')
     expect(token('--control-min')).toBe('44px')
     expect(css).toContain('prefers-reduced-motion: reduce')
     expect(css).toContain(':focus-visible')
+  })
+
+  it('uses a local rounded display face with a separate readable body face', () => {
+    expect(token('--font-display')).toContain('Baloo 2')
+    expect(token('--font-body')).toContain('Satoshi')
+    expect(css).toContain("url('/fonts/baloo-2-latin.woff2')")
   })
 
   it('registers theme colors so a mascot change cross-fades them', () => {
@@ -46,9 +52,9 @@ describe('Warm Clay tokens', () => {
     expect(root).toMatch(/--nav-bg\s+var\(--dur-slow\)/)
   })
 
-  it('paints the canvas with the active theme background tone', () => {
+  it('keeps a neutral canvas while mascot accents change', () => {
     expect(token('--theme-bg-tone')).toBe('#F3F0E4')
-    expect(css).toMatch(/--app-canvas:\s*var\(--theme-bg-tone\)/)
+    expect(css).toMatch(/--app-canvas:\s*var\(--bg-app\)/)
     expect(css).toMatch(/html,\s*body\s*\{[^}]*background-color:\s*var\(--app-canvas\)/)
   })
 })

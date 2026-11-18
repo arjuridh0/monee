@@ -1,4 +1,4 @@
-import { isValidDateStr } from '@/core/finance/period'
+import { isValidDateStr } from '../../core/finance/period'
 
 export const MAX_RECEIPT_BYTES = 10 * 1024 * 1024
 export const MAX_RECEIPT_ITEMS = 50

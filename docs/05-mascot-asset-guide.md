@@ -1,6 +1,6 @@
 # 05 — Mascot Design Specification & Asset Production Guide
 
-> **Dokumen ini = panduan produksi aset untuk agent 3D (Jalur B) dan engineer canvas 2.5D (Jalur A)**. Berisi: identitas karakter, spesifikasi visual, daftar state, dan acceptance checklist.
+> **Panduan engine Canvas 2.5D dan aset referensi desain.** Seluruh aplikasi, termasuk pemilih maskot, memakai engine yang sama. Model 3D dan decoder tidak lagi digunakan.
 
 ## 1. Roster v1 (nama final — keputusan user)
 
@@ -8,32 +8,21 @@
 |---|---|---|---|
 | `mochi` | **Mochi** | Putih lembut aksen hijau, calm, "The Gentle Seraphim" | `#4F7C3A` (hijau sage olive) — Fresh Olive |
 | `luna` | **Luna** | Furry biru, riang, "The Playful Cat" | `#3F6FB5` (biru) — Ocean Blue |
-| `bumi` | **Bumi** | Gemuk kuning hangat, "The Cheerful Yobao" | `#C0862B` (kuning amber) — Sunny Amber |
+| `bumi` | **Bumi** | Gemuk kuning hangat, "The Cheerful Yobao" | `#9C641D` (kuning amber) — Sunny Amber |
 
-> **Catatan:** kolom accent di atas mengikuti **design system v2 (Warm Clay, dok 04 §2)**. Source runtime `src/theme/mascot-themes.ts` sudah memakai v2. Palet lama (`#34C759` / `#007AFF` / `#FF9500`) tersisa di `mascots/index.js` untuk studio historis; palet itu bukan acuan warna aplikasi.
+> **Catatan:** token runtime mengikuti `src/theme/mascot-themes.ts`. Registry `mascots/index.js` mengekspor karakter; warna tema aplikasi tidak ditentukan oleh PNG referensi.
 
 - **Eca (chibi hijab) TIDAK dipakai** — diabaikan dari roster (keputusan user).
 - Personality: Mochi = tenang/hangat, Luna = aktif/antusias, Bumi = ceria/jahil. Tercerminkan di kecepatan gerak idle & amplitudo ekspresi.
 
-## 2. Arsitektur Render — DUA JALUR (v2.0)
+## 2. Arsitektur Render - Canvas 2.5D
 
-> **Penting:** penamaan jalur A/B di dokumen ini sudah diselaraskan dengan dok 04 §9 dan dok 12.
-
-### Jalur A — 2.5D Canvas Engine (dipakai di SELURUH APP)
-- Maskot pendamping harian **digambar penuh oleh kode** (canvas 2D procedural di folder `mascots/`).
-- Dipakai di: Dashboard, onboarding, lock screen, voice mode, review struk, empty state, dan **reaksi per tab navigasi** (D43).
-- Kenapa: cold start <1 detik, <50KB (tanpa aset bitmap berat), hemat baterai, **arah mata & squash-stretch bergerak real-time**.
-- Mengimplementasikan 14 state seragam untuk ketiga maskot (`mochi`, `luna`, `bumi`).
-- **Mockup PNG untuk desain:** `mascots/png2_5d/{id}-{state}.png` (15 file hasil render engine).
-  Regenerasi: `node tools/render-2_5d.cjs`. **Bukan aset produksi** — app wajib instantiate `MascotCanvas` ([panduan implementasi aset](11-asset-implementation-guide.md)).
-
-### Jalur B — 3D GLB (KHUSUS halaman pilih maskot & tema)
-- Aplikasi menampilkan **snapshot WebP GLB** yang dibuat melalui Three.js WebGL + DRACOLoader lokal. Satu maskot aktif dimuat saat dibutuhkan; kartu memakai gambar snapshot dan transform CSS. Keputusan renderer tetap snapshot dengan fallback Canvas 2.5D.
-- Model 3D diposisikan **frontal dan statis (tanpa rotasi pasif)** agar identitas dan siluet wajah karakter terbaca tegas, jelas, dan rapi.
-- Centering presisi melalui perhitungan `bbox.getCenter()` lokal sehingga seluruh badan dari kepala hingga kaki tampak proporsional di tengah kartu tanpa tenggelam.
-- 1 file `.glb` per maskot (terkompresi Draco).
-- **Di luar halaman ini, TIDAK BOLEH ada render 3D.** Desktop 3D/WebGL berat dan boros baterai.
-- Mockup PNG: `mascots/png/{mochi,luna,bumi}.png`. Produksi: `public/mascots/3d/*.glb`.
+- Maskot digambar oleh engine Canvas 2D procedural di `mascots/`, dibungkus `src/features/mascot/MascotCanvas.tsx`.
+- Engine dipakai pada onboarding, dashboard, kunci perangkat, suara, pemilih maskot dan empty/error state.
+- Ketiga karakter memakai 14 state seragam; reduced motion menampilkan frame statis.
+- Pemilih maskot menggunakan tiga canvas pada carousel berputar. Tidak ada GLB, Three.js, WebGL, Draco atau snapshot model saat runtime.
+- `mascots/png/` menyimpan referensi desain historis, bukan gambar yang diunduh aplikasi.
+- `mascots/png2_5d/{id}-{state}.png` menyimpan 15 mockup desain. Regenerasi: `node tools/render-2_5d.cjs`. Lihat [panduan implementasi aset](11-asset-implementation-guide.md).
 
 ## 3. Konsep Karakter (dari analisis referensi)
 
@@ -90,46 +79,27 @@ Untuk tiap karakter, agent 3D harus menghasilkan **character sheet** berisi:
 
 Semua ini yang diterjemahkan jadi modul kanvas: `luna.js`, `bumi.js`, `mochi.js` dengan kontrak 14 state seragam.
 
-## 6. Deliverable Produksi 3D (Jalur B — Model GLB selector)
+## 6. Deliverable aset
 
-> **Klarifikasi 25 Oktober 2026:** GLB tetap sumber visual Jalur B. Aplikasi membuat snapshot WebP saat runtime; PNG desain bukan sumber kartu produksi. Fallback memakai engine Canvas 2.5D. Lihat dok 06 dan panduan implementasi dok 11.
+| Deliverable | Fungsi |
+|---|---|
+| Engine karakter di `mascots/` | Sumber gambar dan perilaku maskot aplikasi |
+| Character sheet per karakter | Acuan identitas, proporsi dan ekspresi |
+| PNG di `mascots/png2_5d/` | Mockup untuk editor desain; tidak masuk runtime |
 
-| Deliverable | Spek | Untuk |
-|---|---|---|
-| `furry.glb` / `yobao.glb` / `mochi.glb` | Model 3D, dikompres Draco, target < 3 MB | Kartu carousel 3D (utama) |
-| `[mascot]-hero.png` (opsional) | 560×680 px, transparan, pose frontal hero | Fallback statis / OG image |
-| Character sheet per karakter | Bagian 5 | Implementasi canvas 2.5D |
-
-**Aturan render (bila membuat PNG fallback):**
-- Background transparan penuh; **tanpa drop-shadow baked** (shadow dibuat CSS).
-- Lighting soft konsisten antar ketiga karakter.
-- Resolusi 2× dari slot tampil terbesar (280×340 → render 560×680).
-- Format PNG (dikompres WebP saat build, fallback PNG).
+PNG referensi memakai latar transparan dan pencahayaan konsisten. Bayangan pada aplikasi berasal dari engine/tampilan, bukan alasan untuk mengunduh model tambahan. Sumber desain dan PNG tetap dipertahankan di Git; ekspor sementara masuk direktori yang di-ignore.
 
 ## 7. Acceptance Checklist (QA aset)
 
 - [ ] Siluet ketiga karakter terbaca jelas dalam hitungan detik, satu sama lain distinct.
 - [ ] Ketiganya terlihat "satu keluarga produk" (proporsi, mata, shading konsisten).
 - [ ] Warna cocok dengan accent theme di dok 04 (±toleransi kecil).
-- [ ] `.glb` ter-optimasi (< 3 MB, atau terdokumentasi bila terpaksa lebih) & tampil benar dengan `DRACOLoader`.
+- [ ] Pemilih memakai engine Canvas yang sama; tidak ada unduhan model atau decoder 3D.
 - [ ] Ekspresi sheet lengkap 14 state, terbaca jelas dalam ukuran kecil (96px).
 - [ ] Front view tidak terpotong, proporsional (kepala 1:1).
 - [ ] Palette hex tercantum lengkap di character sheet.
-- [ ] Semua file bernama sesuai konvensi: `[mascot]-[state].png` / `[mascot].glb`.
+- [ ] Mockup bernama `[mascot]-[state].png`; kode karakter mengikuti ID registry.
 
-## 8. Ekstensi Masa Depan (data-driven)
+## 8. Menambah maskot
 
-Kontrak config berikut adalah usulan ekstensi, bukan struktur tunggal source saat ini. Runtime memisahkan registry engine `mascots/index.js`, tema `src/theme/mascot-themes.ts`, opsi selector `src/features/mascot/mascot-options.ts`, dan peta GLB `src/core/mascot/model-map.ts`:
-```ts
-interface MascotConfig {
-  id: "mochi" | "luna" | "bumi";
-  name: string;
-  accent: string;          // hex
-  accentSoft: string;
-  bgTone: string;
-  glbPath: string;         // path model 3D carousel, mis. "public/mascots/3d/mochi.glb"
-  drawFn: string;          // fungsi draw procedural di mascots/
-  personality: { idleSpeed: number; bounce: number; }
-}
-```
-Menambah maskot baru = tambah 1 config + 1 file GLB + 1 file engine di `mascots/`. **Tidak mengubah arsitektur core.**
+Perubahan meliputi engine karakter dan registry `mascots/index.js`, tipe ID, token `src/theme/mascot-themes.ts`, serta opsi `src/features/mascot/mascot-options.ts`. Lengkapi state, mockup desain dan tes kontrak maskot. Tidak diperlukan model GLB atau peta nama model. Ini perubahan kode yang harus ditinjau dan diuji, bukan sekadar menambah file gambar.

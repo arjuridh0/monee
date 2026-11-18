@@ -32,11 +32,13 @@ it('saving a name from a stale profile cannot restore credentials changed by ano
 
 it('reload locks an open session when credentials are replaced externally', async () => {
   const db = await openDatabase(); await useMoneeStore.getState().load()
-  useMoneeStore.getState().setLocked(false)
+  await useMoneeStore.getState().unlockProfile(useMoneeStore.getState().profile!)
   const current = (await profileRepo.get(db))!
   await profileRepo.save(db, { ...current, pinHash: 'changed' })
   await useMoneeStore.getState().load()
   expect(useMoneeStore.getState().isLocked).toBe(true)
+  expect(useMoneeStore.getState().snapshot).toBeNull()
+  expect(useMoneeStore.getState().transactions).toEqual([])
 })
 
 it('independent sweep callers both succeed and close the latest database balance once', async () => {
@@ -56,6 +58,7 @@ it('a refresh after midnight WIB closes the old period and publishes the new sna
   await db.put('transactions', { id: 'salary', type: 'income', categoryId: 'cat-gaji', amount: 100000,
     date: '2026-10-25', createdAt: 1, updatedAt: 1 })
   await useMoneeStore.getState().load()
+  await useMoneeStore.getState().unlockProfile(useMoneeStore.getState().profile!)
   expect(useMoneeStore.getState().snapshot?.balance.balance).toBe(100000)
   vi.setSystemTime(new Date('2026-10-31T17:00:01Z'))
   await useMoneeStore.getState().load()

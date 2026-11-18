@@ -184,46 +184,34 @@ Gagal parse → maskot "surprised" → "Aku kurang nangkep, ulangi atau isi manu
 
 ### 6.2 Motion Perpindahan Tab
 
-Prinsip: **navigasi terasa seperti maskot yang pindah kursi**, bukan halaman yang di-cut. Semua motion pakai spring (bukan linear), dan saling menumpuk (stagger) maksimal 3 layer.
+Implementasi aktif: gerak ringkas dan stabil, dengan indikator navbar yang tidak ikut posisi scroll halaman.
 
-**Timeline (Home → Riwayat):**
+- Mobile memakai dua kelompok: Home/Riwayat dan Tabungan/Atur. Satu indikator tetap berada di kelompok aktif, bergeser dengan CSS translateX selama 220 ms, easing cubic-bezier(.22, 1, .36, 1).
+- Indikator tidak mengukur koordinat dokumen dan tidak melewati tombol tambah di tengah. Tidak ada squash, overshoot atau perubahan ukuran saat tab berganti.
+- Pindah kelompok menampilkan indikator langsung pada tab tujuan. Ketukan cepat membalik transisi yang sedang berjalan dan tetap berakhir pada tab terakhir.
+- Konten lama langsung dilepas; konten baru bergeser vertikal 4 px dengan fade selama 160 ms. Layar pertama tidak mendapat animasi masuk.
+- Scroll setiap tab dipulihkan sebelum paint, tanpa menunggu animasi. Umpan balik maskot dikirim 80 ms setelah perpindahan; ketukan berikutnya membatalkan umpan balik sebelumnya.
+- Ikon aktif bergerak 1 px dan membesar menjadi 1.03 selama 160 ms. Reduced motion meniadakan perpindahan indikator dan ikon.
+- Sidebar memakai indikator Motion di dalam container tetap dengan layoutRoot.
 
-| Waktu | Yang terjadi |
+| Tab | State maskot |
 |---|---|
-| 0 ms | Pill aktif masih di Home |
-| 90 ms | Pill **meleset** ke Riwayat + squash 8% (scaleX 1.08 / scaleY 0.92) |
-| 180 ms | Pill mendarat, memantul halus (settle) |
-| 260 ms | Ikon Riwayat pop 1.0 → 1.25 → 1.0 |
+| Home | idle |
+| Riwayat | thinking |
+| Tabungan | happy |
+| Atur | greeting |
 
-**Layer motion (penting — jangan berlapis semua):**
-
-| Layer | Animasi | Durasi / Easing |
-|---|---|---|
-| Konten keluar | `translateX(-24px)` + opacity → 0 | 220ms ease-in |
-| Konten baru | `translateX(24px)` → 0 + opacity → 1 | 260ms spring, delay 40ms |
-| Pill nav | `translateX` + squash saat meleset | spring stiffness 420, damping 30 |
-| Ikon aktif | `scale 1 → 1.25 → 1` | 280ms ease-spring |
-| Maskot 2.5D | state berubah + pop 1.08 | 240ms, delay 80ms |
-| Scroll | restore posisi scroll lama | setelah transisi selesai |
-
-**Maskot bereaksi per tab (ini yang bikin navigasi terasa hidup):**
-
-| Tab | State maskot | Kenapa |
-|---|---|---|
-| Home | `idle` | diam, sesekali ngintip saldo |
-| Riwayat | `thinking` | sedang membaca data pengeluaran |
-| Tabungan | `happy` | senang lihat ngumpulin tabungan |
-| Atur | `greeting` | menyapa, siap bantu |
+Regresi browser mengambil posisi indikator pada setiap frame ketika scroll Tabungan/Atur dipulihkan pada lebar 320, 390 dan 430 px. Indikator wajib tetap di dalam navbar, termasuk setelah ketukan cepat; pemeriksaan posisi akhir saja tidak cukup.
 
 ### 6.3 Aturan Main Motion
 
 | Aturan | Nilai | Alasan |
 |---|---|---|
 | Durasi total | ≤ 300ms | user nggak boleh nunggu navigasi |
-| Easing | spring / overshoot | linear itu robot, bukan "hidup" |
+| Easing | ease-out tanpa overshoot pada navbar | arah jelas, tanpa loncatan |
 | Stagger | maks 3 layer | pill → ikon → maskot. Jangan berlapis semua |
 | Haptic | tick 8ms | **sesudah** transisi, bukan tiap frame |
-| Reduced motion | fade 120ms | semua spring dimatikan |
+| Reduced motion | perpindahan navbar/ikon dinonaktifkan | status aktif tetap terlihat |
 | Tap target | ≥ 44×44px | Walaupun ikon 21px, area sentuhnya 44px |
 | Double-tap | tidak ada | satu aksi per tab, tak ada menu sekunder |
 
@@ -233,7 +221,7 @@ Prinsip: **navigasi terasa seperti maskot yang pindah kursi**, bukan halaman yan
 
 | Elemen | Animasi | Durasi/easing |
 |---|---|---|
-| **Pindah tab** | **Pill meleset + squash, konten parallax, ikon pop, maskot bereaksi** | **≤ 300ms · spring · stagger 3 layer** |
+| **Pindah tab** | **Indikator lokal bergeser, ikon bergerak ringan, maskot bereaksi** | **220ms indikator; 160ms konten; tanpa overshoot** |
 | Sheet buka/tutup | Slide-up + spring | 300ms spring |
 | FAB → sheet | Scale morph halus | 250ms |
 | Progress bucket | Bar/ring fill animasi saat berubah | 400ms ease-out |
